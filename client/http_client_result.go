@@ -3,7 +3,6 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -25,7 +24,7 @@ func ParseHTTPClientResult(pk *Package, res *http.Response, err error) (*HTTPCli
 		return nil, err
 	}
 	contentTypeHeader := res.Header.Get("Content-Type")
-	log.Printf("content type header: %v", contentTypeHeader)
+	// log.Printf("content type header: %v", contentTypeHeader)
 	mediaType, params, err := mime.ParseMediaType(contentTypeHeader)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing media type: %v", err)

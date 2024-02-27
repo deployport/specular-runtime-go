@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -262,7 +261,7 @@ func newClientStream(reader *multipart.Reader, op *Operation, closer io.Closer) 
 }
 func (cs *clientStream) stream(ctx context.Context) {
 	defer func() {
-		log.Printf("closing client stream")
+		// log.Printf("closing client stream")
 		cs.closer.Close()
 		close(cs.outputChan)
 	}()
@@ -280,14 +279,14 @@ func (cs *clientStream) stream(ctx context.Context) {
 }
 
 func (cs *clientStream) nextEvent() (more bool) {
-	log.Printf("reading next event")
+	// log.Printf("reading next event")
 	res, err := cs.fetchNextPart()
 	if errors.Is(err, errHeartbeat) {
-		log.Printf("heartbeat")
+		// log.Printf("heartbeat")
 		return true
 	}
 	if errors.Is(err, io.EOF) {
-		log.Printf("no more parts")
+		// log.Printf("no more parts")
 		return false
 	}
 	if err != nil {
@@ -302,24 +301,24 @@ func (cs *clientStream) nextEvent() (more bool) {
 		Output: res,
 		Err:    nil,
 	}
-	log.Printf("more: %v", more)
+	// log.Printf("more: %v", more)
 	return
 }
 
 var errHeartbeat = errors.New("heartbeat")
 
 func (cs *clientStream) fetchNextPart() (Struct, error) {
-	log.Printf("fetching next part")
+	// log.Printf("fetching next part")
 	part, err := cs.reader.NextPart()
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("next part has been fetched")
+	// log.Printf("next part has been fetched")
 	defer part.Close()
 	if part.Header.Get("Content-Type") == HTTPResultMimeTypeHeartbeat.String() {
 		return nil, errHeartbeat
 	}
-	log.Printf("next part will be read %#v", part.Header)
+	// log.Printf("next part will be read %#v", part.Header)
 	if part.Header.Get("Content-Type") == "" {
 		// final message
 		return nil, io.EOF
@@ -329,7 +328,7 @@ func (cs *clientStream) fetchNextPart() (Struct, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("part content: %v", string(partContent))
+	// log.Printf("part content: %v", string(partContent))
 	st := NewContent()
 	if err := json.Unmarshal(partContent, &st); err != nil {
 		return nil, err
