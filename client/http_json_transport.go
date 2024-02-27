@@ -89,6 +89,18 @@ func WithLogger(logger *slog.Logger) OptionFunc {
 	}
 }
 
+// WithEndpointURL overrides the endpoint URL in the transport
+func WithEndpointURL(endpointURL string) OptionFunc {
+	return func(o any) error {
+		t, ok := o.(*HTTPJSONTransport)
+		if !ok {
+			return nil
+		}
+		t.EndpointURL = endpointURL
+		return nil
+	}
+}
+
 // NewHTTPJSONTransport creates a new HTTP JSON transport
 func NewHTTPJSONTransport(endpointURL string, options ...Option) (*HTTPJSONTransport, error) {
 	t := &HTTPJSONTransport{

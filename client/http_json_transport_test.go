@@ -145,6 +145,17 @@ func TestHTTPJSONTransportProblem(t *testing.T) {
 	require.Equal(t, "too bad", problem.Message)
 }
 
+func TestWithEndpointURL(t *testing.T) {
+	transport := newNoServerTestTransport(t, WithEndpointURL("http://override:3020"))
+	require.Equal(t, "http://override:3020", transport.EndpointURL)
+}
+
+func newNoServerTestTransport(t *testing.T, options ...Option) *HTTPJSONTransport {
+	tr, err := NewHTTPJSONTransport("http://localhost:8080", options...)
+	require.NoError(t, err)
+	return tr
+}
+
 type httpTransportTestParams struct {
 	Output Content
 }
