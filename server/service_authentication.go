@@ -13,7 +13,7 @@ type AuthenticationParams struct {
 	Logger             *slog.Logger
 }
 type authentication struct {
-	onAuthenticate func(params AuthenticationParams) error
+	onAuthenticate func(params *AuthenticationParams) error
 }
 
 // AuthenticationError is an error that occurs during authentication
@@ -39,7 +39,7 @@ func IsAuthenticationError(err error) bool {
 }
 
 // WithAuthentication is a function that sets the authentication function
-func WithAuthentication(authFunc func(params AuthenticationParams) error) ServiceOptionFunc {
+func WithAuthentication(authFunc func(params *AuthenticationParams) error) ServiceOptionFunc {
 	return func(s *Service) {
 		s.onAuthenticate = authFunc
 	}

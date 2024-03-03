@@ -13,7 +13,6 @@ type serviceOperationContext struct {
 }
 
 func newServiceOperationContext(
-	ctx context.Context,
 	logger *slog.Logger,
 	opx *OperationExecution,
 	opsHandlers *opsHandlers,

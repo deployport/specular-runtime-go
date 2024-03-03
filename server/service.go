@@ -41,7 +41,6 @@ func NewService(opts ...ServiceOptionFunc) *Service {
 
 // ServeHTTP implements http.Handler for servicing a package
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	logger := s.logger
 
 	popx, preResult := s.buildHTTPOperationExecution(logger, r)
@@ -49,7 +48,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = preResult.WriteResponse(w)
 		return
 	}
-	octx := newServiceOperationContext(ctx, logger, popx, &s.opsHandlers)
+	octx := newServiceOperationContext(logger, popx, &s.opsHandlers)
 	octx.serve(w)
 }
 
@@ -73,15 +72,19 @@ func (s *Service) buildHTTPOperationExecution(
 	if herr != nil {
 		return nil, client.HTTPResultForError(*herr)
 	}
+	r = r.WithContext(pre.Ctx)
 	//  authenticate
 	if handler := s.authentication.onAuthenticate; handler != nil {
-		if err := handler(AuthenticationParams{
+		params := &AuthenticationParams{
 			OperationExecution: pre,
 			Request:            r,
 			Logger:             logger,
-		}); err != nil {
+		}
+		if err := handler(params); err != nil {
 			return nil, pre.BuildFinalResult(nil, err)
 		}
+		// context possible replaced as part of authentication, we must re-adopt
+		pre.Ctx = params.Request.Context()
 	}
 
 	opx, herr := buildOperationExecution(logger, pk, pre, r.Body)
