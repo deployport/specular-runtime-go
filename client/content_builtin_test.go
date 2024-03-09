@@ -56,3 +56,25 @@ func TestContentRequireArrayBuiltin(t *testing.T) {
 	require.Len(t, tm, 3)
 	require.Equal(t, "a", tm[0])
 }
+
+func TestContentOptionalArrayBuiltinNumeric(t *testing.T) {
+	content := NewContent()
+	content.SetProperty("floatArray", []float64{1.1, 2.1, 1.3})
+	var tm []int32
+	err := ContentOptionalBuiltinNumericArrayProperty(content, "floatArray", &tm)
+	require.NoError(t, err)
+	require.Len(t, tm, 3)
+	require.Equal(t, int32(1), tm[0])
+	require.Equal(t, int32(2), tm[1])
+}
+
+func TestContentRequireArrayBuiltinNumeric(t *testing.T) {
+	content := NewContent()
+	content.SetProperty("floatArray", []any{1.1, 2.1, 1.3})
+	var tm []int64
+	err := ContentRequireBuiltinNumericArrayProperty(content, "floatArray", &tm)
+	require.NoError(t, err)
+	require.Len(t, tm, 3)
+	require.Equal(t, int64(1), tm[0])
+	require.Equal(t, int64(2), tm[1])
+}

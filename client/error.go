@@ -1,6 +1,9 @@
 package client
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // OperationAlreadyExistsError is the error for operation already exists
 type OperationAlreadyExistsError struct {
@@ -158,6 +161,11 @@ func (e *PropertyRequiredError) Error() string {
 func (e *PropertyRequiredError) Is(err error) bool {
 	_, ok := err.(*PropertyRequiredError)
 	return ok
+}
+
+// IsPropertyRequiredError checks if the error is PropertyRequiredError
+func IsPropertyRequiredError(err error) bool {
+	return errors.Is(err, &PropertyRequiredError{})
 }
 
 // PropertyDehydrationError is the error the occurs while dehydrating a property

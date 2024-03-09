@@ -173,25 +173,85 @@ func ContentOptionalBoolProperty(content Content, name string, field **bool) err
 	return nil
 }
 
+// BuildintConstraint is a constraint for a string or a float64
+type BuildintConstraint interface {
+	~string | ContentNumericConstraint
+}
+
 // ContentOptionalBuiltinArrayProperty gets an []T property from a content, if not found it leaves the field unassigned
-func ContentOptionalBuiltinArrayProperty[T any](content Content, name string, field *[]T) error {
+func ContentOptionalBuiltinArrayProperty[T BuildintConstraint](content Content, name string, field *[]T) error {
+	err := ContentRequireBuiltinArrayProperty(content, name, field)
+	if IsPropertyRequiredError(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+// ContentRequireBuiltinArrayProperty gets an []T property from a content, if not found it leaves the field unassigned
+func ContentRequireBuiltinArrayProperty[T BuildintConstraint](content Content, name string, field *[]T) error {
 	v := content.GetProperty(name)
 	if v == nil {
-		return nil
+		return NewPropertyRequiredError(name)
 	}
 	fv, ok := v.([]T)
 	if !ok {
-		return fmt.Errorf("array expected in property %s", name)
+		// allocate and convert one by one
+		vi, ok := v.([]any)
+		if !ok {
+			return fmt.Errorf("array expected in property %s, %T found instead", name, v)
+		}
+		fv = make([]T, len(vi))
+		for ix, v := range vi {
+			vs, ok := v.(T)
+			if !ok {
+				return fmt.Errorf("array item expected in property %s, %T found instead", name, v)
+			}
+			fv[ix] = vs
+		}
 	}
 	*field = fv
 	return nil
 }
 
-// ContentRequireBuiltinArrayProperty gets an []T property from a content, if not found it leaves the field unassigned
-func ContentRequireBuiltinArrayProperty[T any](content Content, name string, field *[]T) error {
+// ContentOptionalBuiltinNumericArrayProperty gets an []T property from a content, if not found it leaves the field unassigned
+func ContentOptionalBuiltinNumericArrayProperty[T ContentNumericConstraint](content Content, name string, field *[]T) error {
+	err := ContentRequireBuiltinNumericArrayProperty(content, name, field)
+	if IsPropertyRequiredError(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+// ContentRequireBuiltinNumericArrayProperty gets an []T property from a content, if not found it leaves the field unassigned
+func ContentRequireBuiltinNumericArrayProperty[T ContentNumericConstraint](content Content, name string, field *[]T) error {
 	v := content.GetProperty(name)
 	if v == nil {
-		return fmt.Errorf("missing property %s", name)
+		return NewPropertyRequiredError(name)
 	}
-	return ContentOptionalBuiltinArrayProperty(content, name, field)
+	fv, ok := v.([]float64)
+	if !ok {
+		// allocate and convert one by one
+		vi, ok := v.([]any)
+		if !ok {
+			return fmt.Errorf("array expected in property %s, %T found instead", name, v)
+		}
+		fv = make([]float64, len(vi))
+		for ix, v := range vi {
+			vs, ok := v.(float64)
+			if !ok {
+				return fmt.Errorf("array item expected in property %s, %T found instead", name, v)
+			}
+			fv[ix] = vs
+		}
+	}
+	res := make([]T, len(fv))
+	for ix, v := range fv {
+		res[ix] = T(v)
+	}
+	*field = res
+	return nil
 }
