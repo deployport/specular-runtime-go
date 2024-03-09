@@ -37,3 +37,22 @@ func TestContentOptionalTimeProperty(t *testing.T) {
 	}
 	require.Nil(t, tm)
 }
+
+func TestContentOptionalArrayBuiltin(t *testing.T) {
+	content := NewContent()
+	content.SetProperty("stringArray", []string{"a", "b", "c"})
+	var tm []string
+	err := ContentOptionalBuiltinArrayProperty(content, "stringArray", &tm)
+	require.NoError(t, err)
+	require.Len(t, tm, 3)
+}
+
+func TestContentRequireArrayBuiltin(t *testing.T) {
+	content := NewContent()
+	content.SetProperty("stringArray", []string{"a", "b", "c"})
+	var tm []string
+	err := ContentRequireBuiltinArrayProperty(content, "stringArray", &tm)
+	require.NoError(t, err)
+	require.Len(t, tm, 3)
+	require.Equal(t, "a", tm[0])
+}

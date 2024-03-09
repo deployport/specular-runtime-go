@@ -172,3 +172,26 @@ func ContentOptionalBoolProperty(content Content, name string, field **bool) err
 	*field = &vb
 	return nil
 }
+
+// ContentOptionalBuiltinArrayProperty gets an []T property from a content, if not found it leaves the field unassigned
+func ContentOptionalBuiltinArrayProperty[T any](content Content, name string, field *[]T) error {
+	v := content.GetProperty(name)
+	if v == nil {
+		return nil
+	}
+	fv, ok := v.([]T)
+	if !ok {
+		return fmt.Errorf("array expected in property %s", name)
+	}
+	*field = fv
+	return nil
+}
+
+// ContentRequireBuiltinArrayProperty gets an []T property from a content, if not found it leaves the field unassigned
+func ContentRequireBuiltinArrayProperty[T any](content Content, name string, field *[]T) error {
+	v := content.GetProperty(name)
+	if v == nil {
+		return fmt.Errorf("missing property %s", name)
+	}
+	return ContentOptionalBuiltinArrayProperty(content, name, field)
+}
