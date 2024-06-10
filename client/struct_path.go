@@ -2,16 +2,33 @@ package client
 
 import "strings"
 
+// StructPathID is the id of the struct path
+// used in maps where a unique value per struct path is necessary
+type StructPathID string
+
 // StructPath is the path of the struct
 type StructPath struct {
 	module ModulePath
 	name   StructName
 }
 
+// NewStructPath creates a new struct path
+func NewStructPath(module ModulePath, name StructName) *StructPath {
+	return &StructPath{
+		module: module,
+		name:   name,
+	}
+}
+
 // String returns the string representation of the struct path
 // as in <modulePath>.<name>
 func (s *StructPath) String() string {
 	return s.MIMEName()
+}
+
+// ID returns the id of the struct
+func (s *StructPath) ID() StructPathID {
+	return StructPathID(s.String())
 }
 
 // MIMEName returns the mime name of the struct

@@ -45,3 +45,8 @@ func (m *ModulePath) Namespace() string {
 func (m *ModulePath) Name() string {
 	return m.name
 }
+
+// Equal returns true if the module paths are equal
+func (m ModulePath) Equal(other ModulePath) bool {
+	return m.namespace == other.namespace && m.name == other.name
+}

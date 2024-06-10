@@ -74,7 +74,7 @@ func (e *BookCreationProblem) Is(err error) bool {
 }
 
 func testPackage() (*client.Package, error) {
-	pk := client.NewPackage("deployport/test")
+	pk := client.NewPackage(client.ModulePathFromTrustedValues("deployport", "test"))
 	input, err := pk.NewType("BookCreateInput", client.TypeBuilder(func() client.Struct {
 		return &BookCreateInput{}
 	}))
