@@ -3,14 +3,14 @@ package client
 // Package is the metadata of package
 type Package struct {
 	AnnotationContainer
-	path            string
+	path            ModulePath
 	resources       map[string]*Resource
 	uniqueResources map[string]*Resource
 	types           map[TypeFQTNString]*StructDefinition
 }
 
 // NewPackage creates a new Package
-func NewPackage(path string) *Package {
+func NewPackage(path ModulePath) *Package {
 	return &Package{
 		path:            path,
 		resources:       map[string]*Resource{},
@@ -20,7 +20,7 @@ func NewPackage(path string) *Package {
 }
 
 // Path returns the path of package
-func (s *Package) Path() string {
+func (s *Package) Path() ModulePath {
 	return s.path
 }
 
