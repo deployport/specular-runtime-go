@@ -20,13 +20,11 @@ func (e *Heartbeat) Hydrate(ctx *HydratationContext) error {
 
 // Dehydrate serializes the struct into the content
 func (e *Heartbeat) Dehydrate(ctx *DehydrationContext) (err error) {
-	ctx.Content().SetStruct(e.TypeFQTN().String())
 	// ctx.Content().SetProperty("message", e.Message)
 	return nil
 }
 
-// TypeFQTN returns the Allow Typq Fully Qualified Type Name
-func (e *Heartbeat) TypeFQTN() TypeFQTN {
-	// TODO: get rid of the hardcoded value
-	return NewTypeFQTN("proto", "hb")
+// StructPath returns the struct path of the struct
+func (e *Heartbeat) StructPath() StructPath {
+	return *NewStructPath(*BuiltinPackage().Path(), "hb")
 }

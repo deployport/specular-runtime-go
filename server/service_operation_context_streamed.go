@@ -64,7 +64,7 @@ func (octx *serviceOperationStreamServeContext) flush() {
 func (octx *serviceOperationStreamServeContext) streamResult(result *client.HTTPResult) error {
 	mime := ""
 	if result != nil {
-		mime = result.MimeType().String()
+		mime = result.MimeType()
 	}
 	part, err := octx.writer.CreatePart(textproto.MIMEHeader{
 		"Content-Type": {mime},

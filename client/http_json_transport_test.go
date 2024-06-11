@@ -14,18 +14,19 @@ type BookCreateInput struct {
 	Name string `json:"name"`
 }
 
-// TypeFQTN returns the fully qualified domain name of the type
-func (t *BookCreateInput) TypeFQTN() TypeFQTN {
-	return NewTypeFQTN("deployport/test", "BookCreateInput")
+// StructPath returns the struct path of the struct
+func (e *BookCreateInput) StructPath() StructPath {
+	return *NewStructPath(*testPackagePath, "bookcreateinput")
 }
-func (t *BookCreateInput) Hydrate(ctx *HydratationContext) error {
-	t.Name = ctx.Content().GetProperty("name").(string)
+
+func (e *BookCreateInput) Hydrate(ctx *HydratationContext) error {
+	e.Name = ctx.Content().GetProperty("name").(string)
 	return nil
 }
 
-func (t *BookCreateInput) Dehydrate(ctx *DehydrationContext) error {
-	ctx.Content().SetStruct(t.TypeFQTN().String())
-	ctx.Content().SetProperty("name", t.Name)
+func (e *BookCreateInput) Dehydrate(ctx *DehydrationContext) error {
+	// ctx.Content().SetStruct(t.TypeFQTN().String())
+	ctx.Content().SetProperty("name", e.Name)
 	return nil
 }
 
@@ -33,19 +34,19 @@ type BookCreateOutput struct {
 	ID string `json:"id"`
 }
 
-// TypeFQTN returns the fully qualified domain name of the type
-func (t *BookCreateOutput) TypeFQTN() TypeFQTN {
-	return NewTypeFQTN("deployport/test", "BookCreateOutput")
+// StructPath returns the struct path of the struct
+func (e *BookCreateOutput) StructPath() StructPath {
+	return *NewStructPath(*testPackagePath, "bookcreateoutput")
 }
 
-func (t *BookCreateOutput) Hydrate(ctx *HydratationContext) error {
-	t.ID = ctx.Content().GetProperty("id").(string)
+func (e *BookCreateOutput) Hydrate(ctx *HydratationContext) error {
+	e.ID = ctx.Content().GetProperty("id").(string)
 	return nil
 }
 
-func (t *BookCreateOutput) Dehydrate(ctx *DehydrationContext) error {
-	ctx.Content().SetStruct(t.TypeFQTN().String())
-	ctx.Content().SetProperty("id", t.ID)
+func (e *BookCreateOutput) Dehydrate(ctx *DehydrationContext) error {
+	// ctx.Content().SetStruct(t.TypeFQTN().String())
+	ctx.Content().SetProperty("id", e.ID)
 	return nil
 }
 
@@ -57,9 +58,9 @@ func (e *BookCreationProblem) Error() string {
 	return e.Message
 }
 
-// TypeFQTN returns the fully qualified domain name of the type
-func (e *BookCreationProblem) TypeFQTN() TypeFQTN {
-	return NewTypeFQTN("deployport/test", "BookCreationProblem")
+// StructPath returns the struct path of the struct
+func (e *BookCreationProblem) StructPath() StructPath {
+	return *NewStructPath(*testPackagePath, "bookcreationproblem")
 }
 
 // Hydrate hydrates the type from the content
@@ -70,7 +71,7 @@ func (e *BookCreationProblem) Hydrate(ctx *HydratationContext) error {
 
 // Dehydrate dehydrates the type into the content
 func (e *BookCreationProblem) Dehydrate(ctx *DehydrationContext) error {
-	ctx.Content().SetStruct(e.TypeFQTN().String())
+	// ctx.Content().SetStruct(e.TypeFQTN().String())
 	ctx.Content().SetProperty("message", e.Message)
 	return nil
 }
@@ -81,8 +82,10 @@ func (e *BookCreationProblem) Is(err error) bool {
 	return ok
 }
 
+var testPackagePath = ModulePathFromTrustedValues("deployport", "test")
+
 func testPackage() (*Package, error) {
-	pk := NewPackage(ModulePathFromTrustedValues("deployport", "test"))
+	pk := NewPackage(testPackagePath)
 	input, err := pk.NewType("BookCreateInput", TypeBuilder(func() Struct {
 		return &BookCreateInput{}
 	}))

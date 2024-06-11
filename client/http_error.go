@@ -7,29 +7,9 @@ import (
 	"net/http"
 )
 
-// HTTPError is an error that can be returned by the HTTP transport
-type HTTPError struct {
-	Message        string        `json:"message"`
-	Resource       string        `json:"resource"`
-	Operation      string        `json:"operation"`
-	HTTPStatusCode int           `json:"-"`
-	ErrorCode      CallErrorCode `json:"code"`
-}
-
-// Error returns the error message
-func (err *HTTPError) Error() string {
-	return fmt.Sprintf("%s: %s, while attempting to execute %s/%s", err.ErrorCode, err.Message, err.Resource, err.Operation)
-}
-
-// Is implements errors.Is
-func (err *HTTPError) Is(target error) bool {
-	_, ok := target.(*HTTPError)
-	return ok
-}
-
 // HTTPErrorInternalServiceError returns an internal service error HTTPError
-func HTTPErrorInternalServiceError(resourceName string, operationName string) HTTPError {
-	return HTTPError{
+func HTTPErrorInternalServiceError(resourceName string, operationName string) *Error {
+	return &Error{
 		Message:        "Internal Service Error",
 		HTTPStatusCode: http.StatusInternalServerError,
 		ErrorCode:      CallErrorCodeInternalServiceError,
@@ -39,7 +19,7 @@ func HTTPErrorInternalServiceError(resourceName string, operationName string) HT
 }
 
 // writeContent writes the content to the io.Writer
-func (err *HTTPError) writeContent(w io.Writer) error {
+func (err *Error) writeContent(w io.Writer) error {
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(err); err != nil {
 		return fmt.Errorf("failed to encode http error: %w", err)

@@ -59,7 +59,7 @@ func (s *Service) buildHTTPOperationExecution(
 	pk := s.pk
 	path, herr := parseOperationExecutionPathFromURIPath(r.URL.Path)
 	if herr != nil {
-		return nil, client.HTTPResultForError(*herr)
+		return nil, client.HTTPResultForError(herr)
 	}
 	ctx := r.Context()
 	pre, herr := buildPreOperationExecution(
@@ -70,7 +70,7 @@ func (s *Service) buildHTTPOperationExecution(
 		path,
 	)
 	if herr != nil {
-		return nil, client.HTTPResultForError(*herr)
+		return nil, client.HTTPResultForError(herr)
 	}
 	r = r.WithContext(pre.Ctx)
 	//  authenticate
@@ -89,7 +89,7 @@ func (s *Service) buildHTTPOperationExecution(
 
 	opx, herr := buildOperationExecution(logger, pk, pre, r.Body)
 	if herr != nil {
-		return nil, client.HTTPResultForError(*herr)
+		return nil, client.HTTPResultForError(herr)
 	}
 	return opx, nil
 }

@@ -14,14 +14,14 @@ type OperationExecutionPath struct {
 }
 
 // parseOperationExecutionPathFromURIPath returns the operation execution header from the URI path
-func parseOperationExecutionPathFromURIPath(path string) (*OperationExecutionPath, *client.HTTPError) {
+func parseOperationExecutionPathFromURIPath(path string) (*OperationExecutionPath, *client.Error) {
 	// path is of the form /<resource-name>/<operation-name>
 	// we need to extract the resource name and operation name
 	// we can do this by finding the first slash and then taking the first part as the resource name and the second part as the operation name
 	rp := strings.TrimPrefix(path, "/")
 	slashPathIndex := strings.Index(rp, "/")
 	if slashPathIndex == -1 {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "expected a valid path to execute a resource operation",
 			ErrorCode:      client.CallErrorCodeMalformedRequest,
@@ -32,7 +32,7 @@ func parseOperationExecutionPathFromURIPath(path string) (*OperationExecutionPat
 
 	// check if resource name has empty spaces
 	if strings.Contains(resourceName, " ") {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "invalid resource name",
 			ErrorCode:      client.CallErrorCodeMalformedRequest,
@@ -40,7 +40,7 @@ func parseOperationExecutionPathFromURIPath(path string) (*OperationExecutionPat
 	}
 
 	if resourceName == "" {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "resource not found",
 			ErrorCode:      client.CallErrorCodeResourceNotFound,
@@ -48,7 +48,7 @@ func parseOperationExecutionPathFromURIPath(path string) (*OperationExecutionPat
 	}
 	operationName := rp[slashPathIndex+1:]
 	if operationName == "" {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "operation not found",
 			Resource:       resourceName,
@@ -58,7 +58,7 @@ func parseOperationExecutionPathFromURIPath(path string) (*OperationExecutionPat
 
 	// check if operation name has empty spaces
 	if strings.Contains(operationName, " ") {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "invalid operation name",
 			Resource:       resourceName,

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"strings"
 )
 
 // Submission is the structure with the pre submission information
@@ -201,17 +202,23 @@ func (t *HTTPJSONTransport) createRequest(ctx context.Context, req *Request) (*h
 	}
 	// log.Printf("input bytes: %v", string(inputBytes))
 
-	operationEndpointURI := t.EndpointURL + "/" + req.Operation.Resource().PackageUniqueName() + "/" + req.Operation.Name()
+	var operationEndpointURI strings.Builder
+	operationEndpointURI.WriteString(t.EndpointURL)
+	operationEndpointURI.WriteString("/")
+	operationEndpointURI.WriteString(req.Operation.Resource().PackageUniqueName())
+	operationEndpointURI.WriteString("/")
+	operationEndpointURI.WriteString(req.Operation.Name())
 
 	hr, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		operationEndpointURI,
+		operationEndpointURI.String(),
 		bytes.NewReader(inputBytes),
 	)
 	if err != nil {
 		return nil, err
 	}
+	hr.Header.Set("Content-Type", req.Input.StructPath().MIMEName())
 	submission := &Submission{
 		OperationRequest: req,
 		HTTPBody:         inputBytes,

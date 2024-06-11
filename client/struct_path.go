@@ -22,17 +22,17 @@ func NewStructPath(module ModulePath, name StructName) *StructPath {
 
 // String returns the string representation of the struct path
 // as in <modulePath>.<name>
-func (s *StructPath) String() string {
+func (s StructPath) String() string {
 	return s.MIMEName()
 }
 
 // ID returns the id of the struct
-func (s *StructPath) ID() StructPathID {
+func (s StructPath) ID() StructPathID {
 	return StructPathID(s.String())
 }
 
 // MIMEName returns the mime name of the struct
-func (s *StructPath) MIMEName() string {
+func (s StructPath) MIMEName() string {
 	var sb strings.Builder
 	s.AppendMIMEName(&sb)
 	return sb.String()
@@ -46,11 +46,11 @@ func (s *StructPath) AppendMIMEName(sb *strings.Builder) {
 }
 
 // Module returns the module of the struct
-func (s *StructPath) Module() ModulePath {
+func (s StructPath) Module() ModulePath {
 	return s.module
 }
 
 // Name returns the name of the struct
-func (s *StructPath) Name() StructName {
+func (s StructPath) Name() StructName {
 	return s.name
 }

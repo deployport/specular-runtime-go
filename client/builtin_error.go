@@ -10,12 +10,16 @@ func NewError() *Error {
 
 // Error entity
 type Error struct {
-	Message string
+	Message        string
+	Resource       string
+	Operation      string
+	HTTPStatusCode int `json:"-"`
+	ErrorCode      CallErrorCode
 }
 
 // Error implements the error interface
 func (e *Error) Error() string {
-	return e.GetMessage()
+	return e.Message
 }
 
 // Is indicates whether the given error chain contains an error of type [Error]
@@ -29,19 +33,18 @@ func IsError(err error) bool {
 	return errors.Is(err, &Error{})
 }
 
-// GetMessage returns the value for the field message
-func (e *Error) GetMessage() string {
-	return e.Message
-}
-
-// SetMessage sets the value for the field message
-func (e *Error) SetMessage(message string) {
-	e.Message = message
-}
-
 // Hydrate deserializes the content into the struct
 func (e *Error) Hydrate(ctx *HydratationContext) error {
 	if err := ContentRequireStringProperty(ctx.Content(), "message", &e.Message); err != nil {
+		return err
+	}
+	if err := ContentRequireStringProperty(ctx.Content(), "operation", &e.Operation); err != nil {
+		return err
+	}
+	if err := ContentRequireStringProperty(ctx.Content(), "resource", &e.Resource); err != nil {
+		return err
+	}
+	if err := ContentRequireStringProperty(ctx.Content(), "errorCode", &e.ErrorCode); err != nil {
 		return err
 	}
 	return nil
@@ -49,13 +52,15 @@ func (e *Error) Hydrate(ctx *HydratationContext) error {
 
 // Dehydrate serializes the struct into the content
 func (e *Error) Dehydrate(ctx *DehydrationContext) (err error) {
-	ctx.Content().SetStruct(e.TypeFQTN().String())
+	// ctx.Content().SetStruct(e.TypeFQTN().String())
 	ctx.Content().SetProperty("message", e.Message)
+	ctx.Content().SetProperty("operation", e.Operation)
+	ctx.Content().SetProperty("resource", e.Resource)
+	ctx.Content().SetProperty("errorCode", e.ErrorCode)
 	return nil
 }
 
-// TypeFQTN returns the Allow Typq Fully Qualified Type Name
-func (e *Error) TypeFQTN() TypeFQTN {
-	// TODO: get rid of the hardcoded value
-	return NewTypeFQTN("proto/error", "Error")
+// StructPath returns the struct path of the struct
+func (e *Error) StructPath() StructPath {
+	return *NewStructPath(*BuiltinPackage().Path(), "err")
 }

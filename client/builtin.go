@@ -5,9 +5,11 @@ import (
 	"sync"
 )
 
+var builtinPath = ModulePathFromTrustedValues("spec", "proto")
+
 func newSpecularPackage() (*Package, error) {
 	pk := NewPackage(
-		ModulePathFromTrustedValues("spec", "proto"),
+		builtinPath,
 	)
 	if _, err := pk.NewType(
 		"err",
