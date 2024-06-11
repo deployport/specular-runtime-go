@@ -38,3 +38,35 @@ type TypeBuilder func() Struct
 func (t *StructDefinition) Path() *StructPath {
 	return t.path
 }
+
+// StructDefinitionFinder allows to find a struct definition in builtin or user package
+type StructDefinitionFinder struct {
+	builtinPackage *Package
+	userPackage    *Package
+}
+
+// Builtin returns the builtin package of the StructDefinitionFinder
+func (f *StructDefinitionFinder) Builtin() *Package {
+	return f.builtinPackage
+}
+
+// User returns the user package of the StructDefinitionFinder
+func (f *StructDefinitionFinder) User() *Package {
+	return f.userPackage
+}
+
+// NewMultiPackageStructFinder is a finder of struct definitions in multiple packages
+func NewMultiPackageStructFinder(userPkg *Package) *StructDefinitionFinder {
+	return &StructDefinitionFinder{
+		userPackage:    userPkg,
+		builtinPackage: BuiltinPackage(),
+	}
+}
+
+// Find finds a struct definition by its struct path, may return TypeNotFoundError
+func (f *StructDefinitionFinder) Find(sp StructPath) (*StructDefinition, error) {
+	if sp.Module().Equal(*f.builtinPackage.Path()) {
+		return f.builtinPackage.TypeByPath(sp)
+	}
+	return f.userPackage.TypeByPath(sp)
+}

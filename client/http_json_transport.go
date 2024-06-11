@@ -138,30 +138,23 @@ func (t *HTTPJSONTransport) Execute(ctx context.Context, req *Request) (Struct, 
 	defer res.Body.Close()
 
 	pk := req.Operation.Resource().Package()
-	cr, err := ParseHTTPClientResult(pk, res, err)
+	structFinder := NewMultiPackageStructFinder(pk)
+	cr, err := ParseHTTPClientResult(structFinder, res.Header, res.Body)
 	if err != nil {
 		return nil, err
 	}
-	if mr := cr.Multipart; mr != nil {
+	if mr := cr.Stream; mr != nil {
+		mr.Close()
 		return nil, fmt.Errorf("unexpected multipart result")
 	}
-	sr := cr.ServerResult
+	sr := cr.Single
 	if sr == nil {
 		return nil, fmt.Errorf("server result expected")
 	}
-	if sr.Heartbeat {
-		return nil, fmt.Errorf("unexpected heartbeat")
-	}
-	if err := sr.Err; err != nil {
+	if err, ok := sr.(error); ok {
 		return nil, err
 	}
-	if st := sr.Struct; st != nil {
-		if sterr, ok := st.(error); ok {
-			return nil, sterr
-		}
-		return st, nil
-	}
-	return nil, fmt.Errorf("unexpected result")
+	return sr, nil
 }
 
 // Stream executes the request and streams its results
@@ -176,33 +169,24 @@ func (t *HTTPJSONTransport) Stream(ctx context.Context, req *Request) (<-chan St
 	}
 
 	pk := req.Operation.Resource().Package()
-	cr, err := ParseHTTPClientResult(pk, res, err)
+	structFinder := NewMultiPackageStructFinder(pk)
+	cr, err := ParseHTTPClientResult(structFinder, res.Header, res.Body)
 	if err != nil {
 		return nil, err
 	}
-	if mr := cr.Multipart; mr != nil {
-		closer := res.Body
-		stream := newClientStream(mr, req.Operation, closer)
-		go stream.stream(ctx)
-		return stream.outputChan, nil
-	}
-	sr := cr.ServerResult
-	if sr == nil {
-		return nil, fmt.Errorf("server result expected")
-	}
-	if sr.Heartbeat {
-		return nil, fmt.Errorf("unexpected heartbeat")
-	}
-	if err := sr.Err; err != nil {
-		return nil, err
-	}
-	if st := sr.Struct; st != nil {
+	sr := cr.Single
+	if st := sr; st != nil {
 		if sterr, ok := st.(error); ok {
 			return nil, sterr
 		}
 		return nil, fmt.Errorf("unexpected struct result before stream, %v", st)
 	}
-	return nil, fmt.Errorf("unexpected result")
+	stream := cr.Stream
+	if stream == nil {
+		return nil, fmt.Errorf("server stream expected")
+	}
+	go stream.stream(ctx)
+	return stream.outputChan, nil
 }
 
 func (t *HTTPJSONTransport) createRequest(ctx context.Context, req *Request) (*http.Request, error) {
@@ -242,27 +226,33 @@ func (t *HTTPJSONTransport) createRequest(ctx context.Context, req *Request) (*h
 }
 
 type clientStream struct {
-	reader     *multipart.Reader
-	outputChan chan StreamEvent[Struct]
-	op         *Operation
-	closer     io.Closer
+	reader       *multipart.Reader
+	outputChan   chan StreamEvent[Struct]
+	structFinder *StructDefinitionFinder
+	closer       io.Closer
 }
 
-func newClientStream(reader *multipart.Reader, op *Operation, closer io.Closer) *clientStream {
+func newClientStream(boundary string, structFinder *StructDefinitionFinder, closer io.ReadCloser) *clientStream {
+	reader := multipart.NewReader(closer, boundary)
 	outputChan := make(chan StreamEvent[Struct],
 		1, // we want to at least keep a message received until the caller can start consuming it
 	)
 	return &clientStream{
-		reader:     reader,
-		outputChan: outputChan,
-		op:         op,
-		closer:     closer,
+		reader:       reader,
+		outputChan:   outputChan,
+		structFinder: structFinder,
+		closer:       closer,
 	}
+}
+
+// Close closes the stream
+func (cs *clientStream) Close() error {
+	return cs.closer.Close()
 }
 func (cs *clientStream) stream(ctx context.Context) {
 	defer func() {
 		// log.Printf("closing client stream")
-		cs.closer.Close()
+		cs.Close()
 		close(cs.outputChan)
 	}()
 	for {
@@ -281,8 +271,7 @@ func (cs *clientStream) stream(ctx context.Context) {
 func (cs *clientStream) nextEvent() (more bool) {
 	// log.Printf("reading next event")
 	res, err := cs.fetchNextPart()
-	if errors.Is(err, errHeartbeat) {
-		// log.Printf("heartbeat")
+	if _, ok := res.(*Heartbeat); ok {
 		return true
 	}
 	if errors.Is(err, io.EOF) {
@@ -305,8 +294,6 @@ func (cs *clientStream) nextEvent() (more bool) {
 	return
 }
 
-var errHeartbeat = errors.New("heartbeat")
-
 func (cs *clientStream) fetchNextPart() (Struct, error) {
 	// log.Printf("fetching next part")
 	part, err := cs.reader.NextPart()
@@ -315,44 +302,20 @@ func (cs *clientStream) fetchNextPart() (Struct, error) {
 	}
 	// log.Printf("next part has been fetched")
 	defer part.Close()
-	if part.Header.Get("Content-Type") == HTTPResultMimeTypeHeartbeat.String() {
-		return nil, errHeartbeat
-	}
-	// log.Printf("next part will be read %#v", part.Header)
-	if part.Header.Get("Content-Type") == "" {
-		// final message
-		return nil, io.EOF
-	}
-
-	partContent, err := io.ReadAll(part)
+	result, err := ParseHTTPClientResult(cs.structFinder, http.Header(part.Header), part)
 	if err != nil {
+		// includes io.EOF when necessary
 		return nil, err
 	}
-	// log.Printf("part content: %v", string(partContent))
-	st := NewContent()
-	if err := json.Unmarshal(partContent, &st); err != nil {
-		return nil, err
-	}
-	resTypeFQTN, err := TypeFQTNFromString(st.GetStruct())
-	if err != nil {
-		return nil, err
-	}
-	pk := cs.op.Resource().Package()
-
-	resType, err := pk.TypeByFQDN(resTypeFQTN)
-	if err != nil {
-		return nil, err
-	}
-	sst := resType.TypeBuilder()()
-	err = StructFromContent(st, pk, sst)
-	if err != nil {
-		return nil, err
-	}
-
-	if cs.op.IsProblemType(sst.TypeFQTN()) {
-		if err, ok := sst.(error); ok {
+	sr := result.Single
+	if sr != nil {
+		if err, ok := sr.(error); ok {
 			return nil, err
 		}
+		return sr, nil
+	} else if stream := result.Stream; stream != nil {
+		stream.Close()
+		return nil, fmt.Errorf("unexpected stream in stream")
 	}
-	return sst, nil
+	return nil, fmt.Errorf("expected stream part")
 }
