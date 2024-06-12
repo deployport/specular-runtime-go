@@ -218,7 +218,7 @@ func (t *HTTPJSONTransport) createRequest(ctx context.Context, req *Request) (*h
 	if err != nil {
 		return nil, err
 	}
-	hr.Header.Set("Content-Type", req.Input.StructPath().MIMEName())
+	hr.Header.Set("Content-Type", req.Input.StructPath().MIMENameJSONHTTP())
 	submission := &Submission{
 		OperationRequest: req,
 		HTTPBody:         inputBytes,

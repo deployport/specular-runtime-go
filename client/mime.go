@@ -9,19 +9,28 @@ import (
 // MIME is the media type of the package
 type MIME struct {
 	// type in lowercase and without parameters
-	tp     string
-	params map[string]string
+	tp         string
+	params     map[string]string
+	jsonFormat bool
 }
 
-// NewMIME creates a new MIME from a string
+// NewMIME creates a new MIME from a string, returning validation errors
 func NewMIME(rawMime string) (MIME, error) {
 	mediaType, params, err := mime.ParseMediaType(rawMime)
 	if err != nil {
 		return MIME{}, fmt.Errorf("error parsing media type, %w", err)
 	}
+	jsonFormatIndex := strings.Index(mediaType, "+json")
+	// remove the json format from the media type
+	jsonFormat := false
+	if jsonFormatIndex > 0 {
+		mediaType = mediaType[:strings.Index(mediaType, "+json")]
+		jsonFormat = true
+	}
 	return MIME{
-		tp:     strings.ToLower(mediaType),
-		params: params,
+		tp:         strings.ToLower(mediaType),
+		params:     params,
+		jsonFormat: jsonFormat,
 	}, nil
 }
 
@@ -44,11 +53,6 @@ func (m MIME) Parameter(key string) (v string, ok bool) {
 // ModuleMIMEApplicationSubType is the mime application sub type for the module
 // as in application/spec
 const ModuleMIMEApplicationSubType = "application/spec"
-
-// // IsModuleMIMEApplicationSubType returns true if the MIME is the module MIME application sub type
-// func (m MIME) IsModuleMIMEApplicationSubType() bool {
-// 	return strings.HasPrefix(m.String(), ModuleMIMEApplicationSubType)
-// }
 
 // StreamHeader is the header of a stream
 type StreamHeader struct {
@@ -78,13 +82,15 @@ func (m MIME) StructPath() (*StructPath, error) {
 		return nil, nil
 	}
 	parts := strings.Split(m.tp, ".")
-	if len(parts) < 3 {
+	partsLen := len(parts)
+	fmt.Printf("parts: %v", parts)
+	if partsLen < 4 {
 		return nil, fmt.Errorf("invalid struct path")
 	}
-	modulePath, err := ParseModulePath(parts[0], parts[1])
+	modulePath, err := ParseModulePath(parts[1], parts[2])
 	if err != nil {
 		return nil, err
 	}
-	name := StructNameFromTrustedValue(parts[2])
+	name := StructNameFromTrustedValue(parts[3])
 	return NewStructPath(*modulePath, name), nil
 }

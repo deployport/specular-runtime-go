@@ -34,7 +34,7 @@ func HTTPResultForHeartbeat() *HTTPResult {
 
 // MimeType returns the mime type of the result based on the field set in the following order of priority: struct, err, heartbeat
 func (r *HTTPResult) MimeType() string {
-	return r.Struct.StructPath().MIMEName()
+	return r.Struct.StructPath().MIMENameJSONHTTP()
 }
 
 // HTTPStatusCode returns the HTTP status code of the result

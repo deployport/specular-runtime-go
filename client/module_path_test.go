@@ -9,6 +9,6 @@ import (
 // TestModulePathFromTrustedValues tests ModulePathFromTrustedValues
 func TestModulePathFromTrustedValues(t *testing.T) {
 	mp := ModulePathFromTrustedValues("ns", "name")
-	require.Equal(t, "ns", mp.Namespace)
-	require.Equal(t, "name", mp.Name)
+	require.Equal(t, "ns", mp.Namespace())
+	require.Equal(t, "name", mp.Name())
 }

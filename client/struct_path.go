@@ -38,6 +38,14 @@ func (s StructPath) MIMEName() string {
 	return sb.String()
 }
 
+// MIMENameJSONHTTP returns the mime name of the struct +json media type sub type
+func (s StructPath) MIMENameJSONHTTP() string {
+	var sb strings.Builder
+	s.AppendMIMEName(&sb)
+	sb.WriteString("+json")
+	return sb.String()
+}
+
 // AppendMIMEName adds the mime name of the struct to the string builder
 func (s *StructPath) AppendMIMEName(sb *strings.Builder) {
 	s.module.AppendMIMETreeName(sb)

@@ -86,19 +86,19 @@ var testPackagePath = ModulePathFromTrustedValues("deployport", "test")
 
 func testPackage() (*Package, error) {
 	pk := NewPackage(testPackagePath)
-	input, err := pk.NewType("BookCreateInput", TypeBuilder(func() Struct {
+	input, err := pk.NewType("bookcreateinput", TypeBuilder(func() Struct {
 		return &BookCreateInput{}
 	}))
 	if err != nil {
 		return nil, err
 	}
-	output, err := pk.NewType("BookCreateOutput", TypeBuilder(func() Struct {
+	output, err := pk.NewType("bookcreateoutput", TypeBuilder(func() Struct {
 		return &BookCreateOutput{}
 	}))
 	if err != nil {
 		return nil, err
 	}
-	prob, err := pk.NewType("BookCreationProblem", TypeBuilder(func() Struct {
+	prob, err := pk.NewType("bookcreationproblem", TypeBuilder(func() Struct {
 		return &BookCreationProblem{}
 	}))
 	if err != nil {
@@ -119,9 +119,8 @@ func testPackage() (*Package, error) {
 }
 
 func TestHTTPJSONTransportSuccessResponse(t *testing.T) {
-	out := NewContent()
-	out.SetStruct("deployport/test:BookCreateOutput")
-	out.SetProperty("id", "id123")
+	out := &BookCreateOutput{}
+	out.ID = "id123"
 	tst := httpTransportTest(t, httpTransportTestParams{
 		Output: out,
 	})
@@ -134,9 +133,8 @@ func TestHTTPJSONTransportSuccessResponse(t *testing.T) {
 }
 
 func TestHTTPJSONTransportProblem(t *testing.T) {
-	out := NewContent()
-	out.SetStruct("deployport/test:BookCreationProblem")
-	out.SetProperty("message", "too bad")
+	out := &BookCreationProblem{}
+	out.Message = "too bad"
 	tst := httpTransportTest(t, httpTransportTestParams{
 		Output: out,
 	})
@@ -144,6 +142,7 @@ func TestHTTPJSONTransportProblem(t *testing.T) {
 	err := tst.ResponseError
 	require.NotNil(t, err)
 	require.Nil(t, res)
+	require.ErrorIs(t, err, &BookCreationProblem{})
 	problem := err.(*BookCreationProblem)
 	require.Equal(t, "too bad", problem.Message)
 }
@@ -160,7 +159,7 @@ func newNoServerTestTransport(t *testing.T, options ...Option) *HTTPJSONTranspor
 }
 
 type httpTransportTestParams struct {
-	Output Content
+	Output Struct
 }
 
 func httpTransportTest(t *testing.T, params httpTransportTestParams) *httpTransportTestState {
@@ -174,7 +173,7 @@ func httpTransportTest(t *testing.T, params httpTransportTestParams) *httpTransp
 		if err != nil {
 			panic(err)
 		}
-		w.Header().Set("Content-Type", "specular/struct")
+		w.Header().Set("Content-Type", res.StructPath().MIMENameJSONHTTP())
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(b)
 	}))
@@ -183,7 +182,9 @@ func httpTransportTest(t *testing.T, params httpTransportTestParams) *httpTransp
 	transport, err := NewHTTPJSONTransport(ts.URL)
 	require.NoError(t, err)
 	rs := pk.FindResource("Book")
+	require.NotNil(t, rs)
 	op := rs.FindOperation("Create")
+	require.NotNil(t, op)
 	res, err := transport.Execute(ctx, &Request{
 		Operation: op,
 		Input:     &BookCreateInput{},
