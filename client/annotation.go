@@ -2,7 +2,7 @@ package client
 
 // Annotation is the interface for annotation instances
 type Annotation interface {
-	Type
+	// Type
 }
 
 // AnnotationContainer is the structure for annotation container

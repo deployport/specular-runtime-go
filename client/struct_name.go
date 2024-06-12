@@ -1,5 +1,7 @@
 package client
 
+import "strings"
+
 // StructName is the name of the struct
 type StructName string
 
@@ -11,7 +13,7 @@ func StructNameFromTrustedValue(name string) StructName {
 // ParseStructName parses a string and returns a StructName
 func ParseStructName(name string) (StructName, error) {
 	// TODO: validate name
-	return StructName(name), nil
+	return StructName(strings.ToLower(name)), nil
 }
 
 // String returns the string representation of the struct name
