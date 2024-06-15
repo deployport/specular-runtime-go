@@ -9,8 +9,6 @@ func NewContent() Content {
 	return c
 }
 
-const contentStructKey = "__type"
-
 // SetProperty sets a property value
 func (c Content) SetProperty(name string, value any) {
 	c[name] = value
@@ -23,26 +21,6 @@ func (c Content) GetProperty(name string) any {
 		return nil
 	}
 	return v
-}
-
-// GetStruct returns the struct Fully Qualified Type Name
-func (c Content) GetStruct() string {
-	if c == nil {
-		return ""
-	}
-	s, ok := c[contentStructKey].(string)
-	if !ok {
-		return ""
-	}
-	return s
-}
-
-// SetStruct sets the struct FQDN
-func (c Content) SetStruct(s string) {
-	if c == nil {
-		return
-	}
-	c[contentStructKey] = s
 }
 
 // Map returns the underlying map

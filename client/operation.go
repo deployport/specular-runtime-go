@@ -5,7 +5,7 @@ type Operation struct {
 	AnnotationContainer
 	res      *Resource
 	name     string
-	problems map[TypeFQTN]struct{}
+	problems map[StructPathID]*StructDefinition
 	input    *StructDefinition
 	output   *StructDefinition
 	streamed bool
@@ -15,7 +15,7 @@ func newOperation(res *Resource, name string) *Operation {
 	return &Operation{
 		res:      res,
 		name:     name,
-		problems: map[TypeFQTN]struct{}{},
+		problems: map[StructPathID]*StructDefinition{},
 	}
 }
 
@@ -31,11 +31,11 @@ func (op *Operation) Resource() *Resource {
 
 // RegisterProblemType registers a problem type
 func (op *Operation) RegisterProblemType(tp *StructDefinition) {
-	op.problems[tp.FQDN()] = struct{}{}
+	op.problems[tp.Path().ID()] = tp
 }
 
 // IsProblemType returns true if the type is a problem type
-func (op *Operation) IsProblemType(tp TypeFQTN) bool {
+func (op *Operation) IsProblemType(tp StructPathID) bool {
 	_, ok := op.problems[tp]
 	return ok
 }

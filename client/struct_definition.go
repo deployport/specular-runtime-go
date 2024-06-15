@@ -2,26 +2,24 @@ package client
 
 // StructDefinition is the metadata of type
 type StructDefinition struct {
-	name  string
 	pkg   *Package
 	build TypeBuilder
-	fqdn  TypeFQTN
+	path  *StructPath
 }
 
 // NewStructDefinition creates a new Type
-func NewStructDefinition(pkg *Package, name string, build TypeBuilder) *StructDefinition {
+func NewStructDefinition(pkg *Package, name StructName, build TypeBuilder) *StructDefinition {
 	return &StructDefinition{
-		name:  name,
 		pkg:   pkg,
 		build: build,
-		fqdn:  NewTypeFQTN(pkg.Path(), name),
+		path:  NewStructPath(*pkg.Path(), name),
 	}
 }
 
-// Name returns the name of type
-func (t *StructDefinition) Name() string {
-	return t.name
-}
+// // Name returns the name of type
+// func (t *StructDefinition) Name() string {
+// 	return t.name
+// }
 
 // Package returns the package of type
 func (t *StructDefinition) Package() *Package {
@@ -36,7 +34,39 @@ func (t *StructDefinition) TypeBuilder() TypeBuilder {
 // TypeBuilder is a function that returns an instance of the type
 type TypeBuilder func() Struct
 
-// FQDN returns the fully qualified name
-func (t *StructDefinition) FQDN() TypeFQTN {
-	return t.fqdn
+// Path returns the path of type
+func (t *StructDefinition) Path() *StructPath {
+	return t.path
+}
+
+// StructDefinitionFinder allows to find a struct definition in builtin or user package
+type StructDefinitionFinder struct {
+	builtinPackage *Package
+	userPackage    *Package
+}
+
+// Builtin returns the builtin package of the StructDefinitionFinder
+func (f *StructDefinitionFinder) Builtin() *Package {
+	return f.builtinPackage
+}
+
+// User returns the user package of the StructDefinitionFinder
+func (f *StructDefinitionFinder) User() *Package {
+	return f.userPackage
+}
+
+// NewMultiPackageStructFinder is a finder of struct definitions in multiple packages
+func NewMultiPackageStructFinder(userPkg *Package) *StructDefinitionFinder {
+	return &StructDefinitionFinder{
+		userPackage:    userPkg,
+		builtinPackage: BuiltinPackage(),
+	}
+}
+
+// Find finds a struct definition by its struct path, may return TypeNotFoundError
+func (f *StructDefinitionFinder) Find(sp StructPath) (*StructDefinition, error) {
+	if sp.Module().Equal(*f.builtinPackage.Path()) {
+		return f.builtinPackage.TypeByPath(sp)
+	}
+	return f.userPackage.TypeByPath(sp)
 }

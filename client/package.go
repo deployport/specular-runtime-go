@@ -1,45 +1,60 @@
 package client
 
+import "fmt"
+
 // Package is the metadata of package
 type Package struct {
 	AnnotationContainer
-	path            string
+	path            *ModulePath
 	resources       map[string]*Resource
 	uniqueResources map[string]*Resource
-	types           map[TypeFQTNString]*StructDefinition
+
+	// all types, including imported from other packages
+	allTypes map[StructPathID]*StructDefinition
+
+	localTypes map[StructName]*StructDefinition
 }
 
 // NewPackage creates a new Package
-func NewPackage(path string) *Package {
+func NewPackage(path *ModulePath) *Package {
 	return &Package{
 		path:            path,
 		resources:       map[string]*Resource{},
 		uniqueResources: map[string]*Resource{},
-		types:           map[TypeFQTNString]*StructDefinition{},
+		allTypes:        map[StructPathID]*StructDefinition{},
+		localTypes:      map[StructName]*StructDefinition{},
 	}
 }
 
 // Path returns the path of package
-func (s *Package) Path() string {
+func (s *Package) Path() *ModulePath {
 	return s.path
 }
 
-// NewType creates a new type with a name
+// NewType creates a new type with a name, may return TypeAlreadyExistsError
 func (s *Package) NewType(name string, builder TypeBuilder) (*StructDefinition, error) {
-	tp := NewStructDefinition(s, name, builder)
-	return tp, s.RegisterType(tp)
+	nm, err := ParseStructName(name)
+	if err != nil {
+		return nil, err
+	}
+	tp := NewStructDefinition(s, nm, builder)
+	return tp, s.registerType(tp)
 }
 
 // RegisterType registers a types with a name or TypeAlreadyExistsError error
-func (s *Package) RegisterType(tp *StructDefinition) error {
-	fqdn := TypeFQTNString(tp.FQDN().String())
+func (s *Package) registerType(tp *StructDefinition) error {
 	// check if types already exists
-	if _, ok := s.types[fqdn]; ok {
-		return &TypeAlreadyExistsError{
-			message: "types already exists",
+	isLocalType := tp.Path().Module().Equal(*s.path)
+	if isLocalType {
+		name := tp.path.Name()
+		if _, ok := s.localTypes[name]; ok {
+			return &TypeAlreadyExistsError{
+				message: fmt.Sprintf("type already exists, duplicate name %s", name.String()),
+			}
 		}
+		s.localTypes[name] = tp
 	}
-	s.types[fqdn] = tp
+	s.allTypes[tp.Path().ID()] = tp
 	return nil
 }
 
@@ -59,13 +74,25 @@ func (s *Package) FindUniqueResource(uniqueResourceName string) *Resource {
 	return nil
 }
 
-// TypeByFQDN returns a type by name or TypeNotFoundError error
-func (s *Package) TypeByFQDN(name TypeFQTN) (*StructDefinition, error) {
-	if tp, ok := s.types[TypeFQTNString(name.String())]; ok {
+// TypeByName returns a type by name or TypeNotFoundError error
+// only local types are returned if found
+func (s *Package) TypeByName(name StructName) (*StructDefinition, error) {
+	if tp, ok := s.localTypes[name]; ok {
 		return tp, nil
 	}
 	return nil, &TypeNotFoundError{
 		message: "type not found " + name.String(),
+	}
+}
+
+// TypeByPath returns a type by path or TypeNotFoundError error
+// all types, including imported from other packages are matched
+func (s *Package) TypeByPath(path StructPath) (*StructDefinition, error) {
+	if tp, ok := s.allTypes[path.ID()]; ok {
+		return tp, nil
+	}
+	return nil, &TypeNotFoundError{
+		message: "type not found " + path.String(),
 	}
 }
 
@@ -90,10 +117,11 @@ func (s *Package) registerUniqueResource(res *Resource) error {
 	return nil
 }
 
-// Types returns all types
+// Types returns all types registered in the package
 func (s *Package) Types() []*StructDefinition {
-	types := make([]*StructDefinition, 0, len(s.types))
-	for _, tp := range s.types {
+	typesMap := s.localTypes
+	types := make([]*StructDefinition, 0, len(typesMap))
+	for _, tp := range typesMap {
 		types = append(types, tp)
 	}
 	return types
@@ -102,7 +130,7 @@ func (s *Package) Types() []*StructDefinition {
 // Import imports all types from another package
 func (s *Package) Import(in *Package) error {
 	for _, tp := range in.Types() {
-		if err := s.RegisterType(tp); err != nil {
+		if err := s.registerType(tp); err != nil {
 			return err
 		}
 	}

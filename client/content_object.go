@@ -3,7 +3,7 @@ package client
 import "fmt"
 
 // ContentObjectProperty gets an object property from a content
-func ContentObjectProperty[S any](content Content, pk *Package, name string, field *S) error {
+func ContentObjectProperty[S any](content Content, builder TypeBuilder, pk *Package, name string, field *S) error {
 	v := content.GetProperty(name)
 	if v == nil {
 		return nil
@@ -13,16 +13,16 @@ func ContentObjectProperty[S any](content Content, pk *Package, name string, fie
 		return fmt.Errorf("expected map in field %s", name)
 	}
 	vc := Content(vmap)
-	fqdn, err := TypeFQTNFromString(vc.GetStruct())
-	if err != nil {
-		return err
-	}
-	tp, err := pk.TypeByFQDN(fqdn)
-	if err != nil {
-		// TODO: polymorphic hydratation
-		return err
-	}
-	object := tp.TypeBuilder()()
+	// fqdn, err := TypeFQTNFromString(vc.GetStruct())
+	// if err != nil {
+	// 	return err
+	// }
+	// tp, err := pk.TypeByPath(fqdn)
+	// if err != nil {
+	// 	// TODO: polymorphic hydratation
+	// 	return err
+	// }
+	object := builder()
 	if err := StructFromContent(vc, pk, object); err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func ContentObjectProperty[S any](content Content, pk *Package, name string, fie
 }
 
 // ContentObjectArrayProperty gets an object array property from a content
-func ContentObjectArrayProperty[S any, A ~[]S](content Content, pk *Package, name string, field *A) error {
+func ContentObjectArrayProperty[S any, A ~[]S](content Content, builder TypeBuilder, pk *Package, name string, field *A) error {
 	v := content.GetProperty(name)
 	if v == nil {
 		return nil
@@ -44,16 +44,16 @@ func ContentObjectArrayProperty[S any, A ~[]S](content Content, pk *Package, nam
 	structs := make(A, 0, len(vs))
 	for _, vmap := range vs {
 		vc := Content(vmap.(map[string]any))
-		fqdn, err := TypeFQTNFromString(vc.GetStruct())
-		if err != nil {
-			return err
-		}
-		tp, err := pk.TypeByFQDN(fqdn)
-		if err != nil {
-			// TODO: polymorphic hydratation
-			return err
-		}
-		object := tp.TypeBuilder()()
+		// fqdn, err := TypeFQTNFromString(vc.GetStruct())
+		// if err != nil {
+		// 	return err
+		// }
+		// tp, err := pk.TypeByPath(fqdn)
+		// if err != nil {
+		// 	// TODO: polymorphic hydratation
+		// 	return err
+		// }
+		object := builder()
 		if err := StructFromContent(vc, pk, object); err != nil {
 			return err
 		}

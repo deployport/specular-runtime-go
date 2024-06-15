@@ -69,6 +69,11 @@ func (e *TypeNotFoundError) Is(err error) bool {
 	return ok
 }
 
+// IsTypeNotFoundError checks if the error is TypeNotFoundError
+func IsTypeNotFoundError(err error) bool {
+	return errors.Is(err, &TypeNotFoundError{})
+}
+
 // ResourceAlreadyExistsError is the error for resource already exists
 type ResourceAlreadyExistsError struct {
 	message string

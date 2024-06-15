@@ -20,7 +20,7 @@ type PreOperationExecution struct {
 	Operation *client.Operation
 }
 
-func (pre *PreOperationExecution) createInternalServiceError() client.HTTPError {
+func (pre *PreOperationExecution) createInternalServiceError() *client.Error {
 	return client.HTTPErrorInternalServiceError(pre.Operation.Resource().Name(), pre.Operation.Name())
 }
 
@@ -51,12 +51,12 @@ func buildPreOperationExecution(
 	unhandledErrorHandling *unhandledErrorHandling,
 	pk *client.Package,
 	path *OperationExecutionPath,
-) (*PreOperationExecution, *client.HTTPError) {
+) (*PreOperationExecution, *client.Error) {
 	resourceName := path.ResourceName
 	operationName := path.OperationName
 	resource := pk.FindUniqueResource(resourceName)
 	if resource == nil {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "resource not found",
 			Resource:       resourceName,
@@ -67,7 +67,7 @@ func buildPreOperationExecution(
 
 	op := resource.FindOperation(operationName)
 	if op == nil {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "operation not found",
 			Resource:       resourceName,
@@ -89,7 +89,7 @@ func buildOperationExecution(
 	pk *client.Package,
 	pre *PreOperationExecution,
 	requestBody io.Reader,
-) (*OperationExecution, *client.HTTPError) {
+) (*OperationExecution, *client.Error) {
 	resourceName := pre.Path.ResourceName
 	operationName := pre.Path.OperationName
 	logger.Debug("operation call", "resource-name", resourceName, "operation-name", operationName)
@@ -98,7 +98,7 @@ func buildOperationExecution(
 	dec := json.NewDecoder(requestBody)
 	if err := dec.Decode(&inputContent); err != nil {
 		logger.Warn("failed to decode input content", "err", err)
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusBadRequest,
 			Message:        "expected valid JSON body",
 			Resource:       resourceName,
@@ -108,9 +108,9 @@ func buildOperationExecution(
 	}
 	input := op.Input().TypeBuilder()()
 	if err := client.StructFromContent(inputContent, pk, input); err != nil {
-		return nil, &client.HTTPError{
+		return nil, &client.Error{
 			HTTPStatusCode: http.StatusBadRequest,
-			Message:        fmt.Sprintf("expected a valid input of type %s", input.TypeFQTN()),
+			Message:        fmt.Sprintf("expected a valid input of type %s", input.StructPath().String()),
 			Resource:       resourceName,
 			Operation:      operationName,
 			ErrorCode:      client.CallErrorCodeInvalidStruct,
@@ -138,7 +138,7 @@ func (pre *PreOperationExecution) BuildFinalResult(
 		}
 		err := errOrStruct
 		if IsAuthenticationError(err) {
-			return client.HTTPResultForError(client.HTTPError{
+			return client.HTTPResultForError(&client.Error{
 				Message:        err.Error(),
 				Resource:       pre.Operation.Resource().Name(),
 				Operation:      pre.Operation.Name(),
