@@ -7,22 +7,22 @@ import (
 	"log"
 )
 
-// Reader represents a JSON reader
-type Reader struct {
+// ObjectReader represents a JSON reader
+type ObjectReader struct {
 	jr                    *json.Decoder
 	firstTokenAlreadyRead bool
 	logPrefix             string
 }
 
-// NewReaderJSON creates a new JSON reader
-func NewReaderJSON(jsonStream io.Reader) *Reader {
-	return &Reader{
+// NewObjectReaderJSON creates a new JSON reader
+func NewObjectReaderJSON(jsonStream io.Reader) *ObjectReader {
+	return &ObjectReader{
 		jr: json.NewDecoder(jsonStream),
 	}
 }
 
-func newSubReader(jr *json.Decoder, logPrefix string) *Reader {
-	return &Reader{
+func newSubObjectReader(jr *json.Decoder, logPrefix string) *ObjectReader {
+	return &ObjectReader{
 		jr:                    jr,
 		firstTokenAlreadyRead: true,
 		logPrefix:             logPrefix,
@@ -30,7 +30,7 @@ func newSubReader(jr *json.Decoder, logPrefix string) *Reader {
 }
 
 // logf prints a log message
-func (r *Reader) logf(format string, args ...interface{}) {
+func (r *ObjectReader) logf(format string, args ...interface{}) {
 	if r.logPrefix != "" {
 		format = "(" + r.logPrefix + ") " + format
 	} else {
@@ -46,7 +46,7 @@ type ReadPropFunc func(p *ReaderProp) error
 // The given property instance is reused and should not be cached outside the function.
 // The function should return an error if the property could not be read.
 // The function should return nil if the property was read successfully.
-func (r *Reader) Read(readProp ReadPropFunc) error {
+func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 	dec := r.jr
 	dec.UseNumber()
 	// readCount := 0
@@ -87,7 +87,7 @@ func (r *Reader) Read(readProp ReadPropFunc) error {
 			} else if v, ok := tk.(json.Delim); ok {
 				if v == json.Delim('{') {
 					// read sub object
-					subReader := newSubReader(dec, "reader for "+currentProp.Name)
+					subReader := newSubObjectReader(dec, "reader for "+currentProp.Name)
 					currentProp.Value.object = subReader
 				} else if v == json.Delim('[') {
 					return fmt.Errorf("array not supported")
@@ -109,8 +109,5 @@ func (r *Reader) Read(readProp ReadPropFunc) error {
 	if tk == json.Delim('}') {
 		return nil
 	}
-	// if readCount == 0 {
-	// 	return fmt.Errorf("no properties found")
-	// }
 	return nil
 }

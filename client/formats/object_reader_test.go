@@ -10,8 +10,29 @@ import (
 	"go.deployport.com/specular-runtime/client/formats"
 )
 
-func TestReader(t *testing.T) {
-	r := formats.NewReaderJSON(bytes.NewReader([]byte(`{"name":"johan", "color": "blue", "deletedAt": null, "count": 1, "container1": {"type": "image"}, "container2": {"type": "video"}}`)))
+func TestObjectReader(t *testing.T) {
+	r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`
+		{
+			"name": "johan",
+			"color": "blue",
+			"deletedAt": null,
+			"count": 1,
+			"container1": {
+				"type": "image"
+			},
+			"container2": {
+				"type": "video"
+			},
+			"contList": [
+				{
+					"type": "image"
+				}
+			],
+			"afterCont1": {
+				"type": "image"
+			}
+		}
+	`)))
 	readNames := []string{}
 	readStrings := map[string]string{}
 	deletedAtRead := true
@@ -76,4 +97,16 @@ func TestReader(t *testing.T) {
 	require.Equal(t, "blue", readStrings["color"])
 	require.True(t, deletedAtRead)
 	require.Equal(t, "1", countRead.String())
+}
+
+func TestReaderEmpty(t *testing.T) {
+	r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`{}`)))
+	readNames := []string{}
+	err := r.Read(func(p *formats.ReaderProp) error {
+		readNames = append(readNames, p.Name)
+		t.Fail()
+		return formats.ErrUnknownField
+	})
+	require.NoError(t, err)
+	require.Empty(t, readNames)
 }

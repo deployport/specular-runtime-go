@@ -3,7 +3,7 @@ package formats
 // ReaderValue is a value to be read in a reader
 type ReaderValue struct {
 	Value
-	object *Reader
+	object *ObjectReader
 }
 
 // Reset resets the reader value
@@ -18,7 +18,7 @@ func (v *ReaderValue) IsEmpty() bool {
 }
 
 // Object returns the object value
-func (v *ReaderValue) Object() (*Reader, error) {
+func (v *ReaderValue) Object() (*ObjectReader, error) {
 	if v.object == nil {
 		return nil, NewValueError("expected object")
 	}
