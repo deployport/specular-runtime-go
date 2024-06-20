@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	formats "go.deployport.com/specular-runtime/client/formats"
+	"go.deployport.com/specular-runtime/client/formats"
 )
 
 func TestReader(t *testing.T) {
