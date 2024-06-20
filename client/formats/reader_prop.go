@@ -3,7 +3,7 @@ package formats
 // ReaderProp represents a property in a JSON object
 type ReaderProp struct {
 	Name  string
-	Value Value
+	Value ReaderValue
 }
 
 // Reset resets the reader prop
