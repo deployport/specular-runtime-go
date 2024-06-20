@@ -9,6 +9,21 @@ type Value struct {
 	number *json.Number
 }
 
+// NewValueString creates a new value with a string
+func NewValueString(s string) Value {
+	return Value{s: &s}
+}
+
+// NewValueNumber creates a new value with a number
+func NewValueNumber(n json.Number) Value {
+	return Value{number: &n}
+}
+
+// NewValueNull creates a new value with a null
+func NewValueNull() Value {
+	return Value{null: true}
+}
+
 // Reset resets the value
 func (v *Value) Reset() {
 	v.s = nil
@@ -39,4 +54,15 @@ func (v *Value) Number() (*json.Number, error) {
 // IsNull checks if the value is null
 func (v *Value) IsNull() bool {
 	return v.null
+}
+
+// MarshalJSON marshals the value to JSON
+func (v *Value) MarshalJSON() ([]byte, error) {
+	if v.s != nil {
+		return json.Marshal(*v.s)
+	}
+	if v.number != nil {
+		return json.Marshal(*v.number)
+	}
+	return json.Marshal(nil)
 }

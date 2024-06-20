@@ -140,6 +140,78 @@ func TestReader(t *testing.T) {
 	require.Equal(t, "1", countRead.String())
 }
 
+func TestReaderUnknownsSimple(t *testing.T) {
+	t.Run("parsing", func(t *testing.T) {
+		r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`
+		{
+			"name": "johan",
+			"color": "blue",
+			"deletedAt": null,
+			"count": 1
+		}
+	`)))
+		r.UseUnknownFields()
+		readNames := []string{}
+		readStrings := map[string]string{}
+		err := r.Read(func(p *formats.ReaderProp) error {
+			log.Printf("root prop %s", p.Name)
+			readNames = append(readNames, p.Name)
+			switch p.Name {
+			case "name", "color":
+				v, err := p.Value.String()
+				require.NoError(t, err)
+				readStrings[p.Name] = *v
+				require.False(t, p.Value.IsNull())
+				return nil
+			default:
+				return formats.ErrUnknownField
+			}
+		})
+		require.NoError(t, err)
+		require.Contains(t, readNames, "name")
+		require.Contains(t, readNames, "color")
+		require.Equal(t, "johan", readStrings["name"])
+		require.Equal(t, "blue", readStrings["color"])
+		unknowns := r.UnknownFields()
+		require.NotNil(t, unknowns)
+		require.Contains(t, unknowns, "deletedAt")
+		require.Contains(t, unknowns, "count")
+	})
+	t.Run("not parsing", func(t *testing.T) {
+		r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`
+		{
+			"name": "johan",
+			"color": "blue",
+			"deletedAt": null,
+			"count": 1
+		}
+	`)))
+		readNames := []string{}
+		readStrings := map[string]string{}
+		err := r.Read(func(p *formats.ReaderProp) error {
+			log.Printf("root prop %s", p.Name)
+			readNames = append(readNames, p.Name)
+			switch p.Name {
+			case "name", "color":
+				v, err := p.Value.String()
+				require.NoError(t, err)
+				readStrings[p.Name] = *v
+				require.False(t, p.Value.IsNull())
+				return nil
+			default:
+				return formats.ErrUnknownField
+			}
+		})
+		require.NoError(t, err)
+		require.Contains(t, readNames, "name")
+		require.Contains(t, readNames, "color")
+		require.Equal(t, "johan", readStrings["name"])
+		require.Equal(t, "blue", readStrings["color"])
+		unknowns := r.UnknownFields()
+		require.Nil(t, unknowns, "unknowns should be nil because UseUnknownFields was not called")
+	})
+}
+
 func TestReaderEmpty(t *testing.T) {
 	r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`{}`)))
 	readNames := []string{}

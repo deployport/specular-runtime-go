@@ -25,3 +25,20 @@ func TestValue(t *testing.T) {
 	_, ok = reflectType.FieldByName("number")
 	require.True(t, ok, "field number not found")
 }
+
+func TestValueMarshalJSON(t *testing.T) {
+	v := formats.NewValueString("test")
+	b, err := v.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, []byte(`"test"`), b)
+
+	v = formats.NewValueNumber("123")
+	b, err = v.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, []byte(`123`), b)
+
+	v = formats.NewValueNull()
+	b, err = v.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, []byte(`null`), b)
+}

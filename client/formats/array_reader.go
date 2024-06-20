@@ -13,6 +13,7 @@ type ArrayReader struct {
 	jr                    *json.Decoder
 	firstTokenAlreadyRead bool
 	logPrefix             string
+	parseUnknownFields    bool
 }
 
 // NewArrayReaderJSON creates a new JSON reader for arrays
@@ -28,6 +29,11 @@ func newSubArrayReader(jr *json.Decoder, logPrefix string) *ArrayReader {
 		firstTokenAlreadyRead: true,
 		logPrefix:             logPrefix,
 	}
+}
+
+// UseUnknownFields allows the reader to parse unknown fields
+func (r *ArrayReader) UseUnknownFields() {
+	r.parseUnknownFields = true
 }
 
 // logf prints a log message
@@ -80,11 +86,16 @@ func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 				currentItem.Value.number = &v
 			} else if v, ok := tk.(json.Delim); ok {
 				if v == json.Delim('{') {
-					// read sub object
 					subReader := newSubObjectReader(dec, "reader for "+strconv.FormatInt(int64(currentItem.Index), 10))
+					if r.parseUnknownFields {
+						subReader.UseUnknownFields()
+					}
 					currentItem.Value.object = subReader
 				} else if v == json.Delim('[') {
 					subReader := newSubArrayReader(dec, "reader for "+strconv.FormatInt(int64(currentItem.Index), 10))
+					if r.parseUnknownFields {
+						subReader.UseUnknownFields()
+					}
 					currentItem.Value.array = subReader
 				}
 			} else {
