@@ -13,7 +13,7 @@ type ObjectReader struct {
 	firstTokenAlreadyRead bool
 	logPrefix             string
 	parseUnknownFields    bool
-	unknownFields         map[string]interface{}
+	unknownFields         map[string]UnknownValue
 }
 
 // NewObjectReaderJSON creates a new JSON reader
@@ -38,7 +38,7 @@ func (r *ObjectReader) UseUnknownFields() {
 
 // UnknownFields returns the unknown fields, if any. Otherwise nil
 // UseUnknownFields must have been called prior reading
-func (r *ObjectReader) UnknownFields() map[string]interface{} {
+func (r *ObjectReader) UnknownFields() map[string]UnknownValue {
 	return r.unknownFields
 }
 
@@ -107,7 +107,7 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 				} else if v == json.Delim('[') {
 					subReader := newSubArrayReader(dec, "reader for "+currentProp.Name)
 					if r.parseUnknownFields {
-						subReader.UseUnknownFields()
+						subReader.UseUnknownItems()
 					}
 					currentProp.Value.array = subReader
 				}
@@ -118,13 +118,33 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 				return fmt.Errorf("failed to read prop %s, %w", currentProp.Name, err)
 			} else if err == ErrUnknownField {
 				if r.unknownFields == nil && r.parseUnknownFields {
-					r.unknownFields = make(map[string]interface{})
+					r.unknownFields = make(map[string]UnknownValue)
 				}
-				var finalValue any
+				var finalValue UnknownValue
 				if !currentProp.Value.Value.IsEmpty() {
-					finalValue = currentProp.Value.Value
+					finalValue.Value = currentProp.Value.Value
+				} else if vr, err := currentProp.Value.Object(); !IsValueError(err) {
+					// we always parse objects so the json decoder moves forward
+					if err != nil {
+						return fmt.Errorf("failed to read unknown prop %s, %w", currentProp.Name, err)
+					}
+					if err := vr.Read(unknownPropReader); err != nil {
+						return fmt.Errorf("failed to read unknown prop %s, %w", currentProp.Name, err)
+					}
+					finalValue.Object = vr.UnknownFields()
+				} else if vr, err := currentProp.Value.Array(); !IsValueError(err) {
+					// we always parse arrays so the json decoder moves forward
+					if err != nil {
+						return fmt.Errorf("failed to load unknown object prop %s, %w", currentProp.Name, err)
+					}
+					if err := vr.Read(unknownItemReader); err != nil {
+						return fmt.Errorf("failed to load unknown array prop %s, %w", currentProp.Name, err)
+					}
+					finalValue.Array = vr.UnknownItems()
 				}
-				if r.unknownFields != nil {
+				// we always parse unknown fields so the parser moves on, but we don't retain values if they are empty or
+				// unknown fields are not enabled
+				if r.unknownFields != nil && !finalValue.IsEmpty() {
 					r.unknownFields[currentProp.Name] = finalValue
 				}
 			}
@@ -140,4 +160,12 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 		return nil
 	}
 	return nil
+}
+
+func unknownPropReader(p *ReaderProp) error {
+	return ErrUnknownField
+}
+
+func unknownItemReader(i *ReaderItem) error {
+	return ErrUnknownField
 }

@@ -147,7 +147,7 @@ func TestReaderUnknownsSimple(t *testing.T) {
 			"name": "johan",
 			"color": "blue",
 			"deletedAt": null,
-			"count": 1
+			"count": 123.45
 		}
 	`)))
 		r.UseUnknownFields()
@@ -176,6 +176,12 @@ func TestReaderUnknownsSimple(t *testing.T) {
 		require.NotNil(t, unknowns)
 		require.Contains(t, unknowns, "deletedAt")
 		require.Contains(t, unknowns, "count")
+		deletedAtValue := unknowns["deletedAt"]
+		require.True(t, deletedAtValue.IsNull())
+		countValue := unknowns["count"]
+		count, err := countValue.Number()
+		require.NoError(t, err)
+		require.Equal(t, "123.45", count.String())
 	})
 	t.Run("not parsing", func(t *testing.T) {
 		r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`
@@ -209,6 +215,103 @@ func TestReaderUnknownsSimple(t *testing.T) {
 		require.Equal(t, "blue", readStrings["color"])
 		unknowns := r.UnknownFields()
 		require.Nil(t, unknowns, "unknowns should be nil because UseUnknownFields was not called")
+	})
+}
+
+func TestReaderUnknownsComplex(t *testing.T) {
+	t.Run("parsing", func(t *testing.T) {
+		r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`
+		{
+			"name": "johan",
+			"color": "blue",
+			"deletedAt": null,
+			"container1": {
+				"type": "pdf"
+			},
+			"count": 123.4,
+			"fruits": ["apple", "banana"]
+		}
+	`)))
+		r.UseUnknownFields()
+		readNames := []string{}
+		readStrings := map[string]string{}
+		err := r.Read(func(p *formats.ReaderProp) error {
+			log.Printf("root prop %s", p.Name)
+			readNames = append(readNames, p.Name)
+			switch p.Name {
+			case "name", "color":
+				v, err := p.Value.String()
+				require.NoError(t, err)
+				readStrings[p.Name] = *v
+				require.False(t, p.Value.IsNull())
+				return nil
+			default:
+				return formats.ErrUnknownField
+			}
+		})
+		require.NoError(t, err)
+		require.Contains(t, readNames, "name")
+		require.Contains(t, readNames, "color")
+		require.Equal(t, "johan", readStrings["name"])
+		require.Equal(t, "blue", readStrings["color"])
+		unknowns := r.UnknownFields()
+		require.NotNil(t, unknowns)
+		require.Contains(t, unknowns, "deletedAt")
+		require.Contains(t, unknowns, "count")
+		require.Contains(t, unknowns, "container1")
+		countVal := unknowns["count"]
+		count, err := countVal.Number()
+		require.NoError(t, err)
+		require.Equal(t, "123.4", count.String())
+		container1Value := unknowns["container1"]
+		container1Type := container1Value.Object["type"]
+		require.NoError(t, err)
+		v, err := container1Type.String()
+		require.NoError(t, err)
+		require.Equal(t, "pdf", *v)
+	})
+	t.Run("not parsing", func(t *testing.T) {
+		r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`
+		{
+			"name": "johan",
+			"color": "blue",
+			"deletedAt": null,
+			"container1": {
+				"type": "pdf"
+			},
+			"count": 123.4
+		}
+	`)))
+		readNames := []string{}
+		readStrings := map[string]string{}
+		err := r.Read(func(p *formats.ReaderProp) error {
+			log.Printf("root prop %s", p.Name)
+			readNames = append(readNames, p.Name)
+			switch p.Name {
+			case "name", "color":
+				v, err := p.Value.String()
+				require.NoError(t, err)
+				readStrings[p.Name] = *v
+				require.False(t, p.Value.IsNull())
+				return nil
+			case "count":
+				// we parse count right after the container object
+				// to make sure the json decoder for sub-objects moves forward
+				v, err := p.Value.Number()
+				require.NoError(t, err)
+				require.Equal(t, "123.4", v.String())
+				return nil
+			default:
+				return formats.ErrUnknownField
+			}
+		})
+		require.NoError(t, err)
+		require.Contains(t, readNames, "name")
+		require.Contains(t, readNames, "color")
+		require.Equal(t, "johan", readStrings["name"])
+		require.Equal(t, "blue", readStrings["color"])
+		unknowns := r.UnknownFields()
+		require.Nil(t, unknowns)
 	})
 }
 
