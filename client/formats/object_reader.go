@@ -90,7 +90,8 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 					subReader := newSubObjectReader(dec, "reader for "+currentProp.Name)
 					currentProp.Value.object = subReader
 				} else if v == json.Delim('[') {
-					return fmt.Errorf("array not supported")
+					subReader := newSubArrayReader(dec, "reader for "+currentProp.Name)
+					currentProp.Value.array = subReader
 				}
 			} else {
 				return fmt.Errorf("expected value for prop %s, got %T(%v)", currentProp.Name, tk, tk)

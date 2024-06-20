@@ -10,7 +10,7 @@ import (
 	"go.deployport.com/specular-runtime/client/formats"
 )
 
-func TestObjectReader(t *testing.T) {
+func TestReader(t *testing.T) {
 	r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`
 		{
 			"name": "johan",
@@ -24,6 +24,7 @@ func TestObjectReader(t *testing.T) {
 				"type": "video"
 			},
 			"contList": [
+				"item1",
 				{
 					"type": "image"
 				}
@@ -81,6 +82,46 @@ func TestObjectReader(t *testing.T) {
 					v, err := p.Value.String()
 					require.NoError(t, err)
 					require.Equal(t, "video", *v)
+					return nil
+				}
+				return formats.ErrUnknownField
+			}))
+			return nil
+		case "contList":
+			subReader, err := p.Value.Array()
+			require.NoError(t, err)
+			require.NoError(t, subReader.Read(func(i *formats.ReaderItem) error {
+				log.Printf("sub item %d", i.Index)
+				if i.Index == 0 {
+					v, err := i.Value.String()
+					require.NoError(t, err)
+					require.Equal(t, "item1", *v)
+					return nil
+				}
+				subReader, err := i.Value.Object()
+				require.NoError(t, err)
+				require.NoError(t, subReader.Read(func(p *formats.ReaderProp) error {
+					log.Printf("sub prop %s", p.Name)
+					if p.Name == "type" {
+						v, err := p.Value.String()
+						require.NoError(t, err)
+						require.Equal(t, "image", *v)
+						return nil
+					}
+					return formats.ErrUnknownField
+				}))
+				return nil
+			}))
+			return nil
+		case "afterCont1":
+			subReader, err := p.Value.Object()
+			require.NoError(t, err)
+			require.NoError(t, subReader.Read(func(p *formats.ReaderProp) error {
+				log.Printf("sub prop %s", p.Name)
+				if p.Name == "type" {
+					v, err := p.Value.String()
+					require.NoError(t, err)
+					require.Equal(t, "image", *v)
 					return nil
 				}
 				return formats.ErrUnknownField
