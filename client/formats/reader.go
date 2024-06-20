@@ -7,25 +7,30 @@ import (
 	"log"
 )
 
+// Reader represents a JSON reader
 type Reader struct {
 	jr *json.Decoder
 }
 
+// NewReaderJSON creates a new JSON reader
 func NewReaderJSON(jsonStream io.Reader) *Reader {
 	return &Reader{
 		jr: json.NewDecoder(jsonStream),
 	}
 }
 
+// ReaderProp represents a property in a JSON object
 type ReaderProp struct {
 	Name  string
 	Value *Value
 }
 
+// ReadPropFunc is a function type for reading properties
 type ReadPropFunc func(p *ReaderProp) error
 
 func (r *Reader) Read(readProp ReadPropFunc) error {
 	dec := r.jr
+	dec.UseNumber()
 	readCount := 0
 	var currentProp *ReaderProp
 	for dec.More() {
@@ -50,8 +55,12 @@ func (r *Reader) Read(readProp ReadPropFunc) error {
 			log.Printf("reading value for prop %s, %#v", currentProp.Name, tk)
 			if v, ok := tk.(string); ok {
 				currentProp.Value = &Value{s: &v}
+			} else if tk == nil {
+				currentProp.Value = &Value{null: true}
+			} else if v, ok := tk.(json.Number); ok {
+				currentProp.Value = &Value{number: &v}
 			} else {
-				return fmt.Errorf("expected string value for prop %s, got %v", currentProp.Name, tk)
+				return fmt.Errorf("expected value for prop %s, got %T(%v)", currentProp.Name, tk, tk)
 			}
 			if err := readProp(currentProp); err != nil {
 				return fmt.Errorf("failed to read prop %s, %w", currentProp.Name, err)
@@ -69,8 +78,11 @@ func (r *Reader) Read(readProp ReadPropFunc) error {
 	return nil
 }
 
+// Value represents a value in a JSON object
 type Value struct {
-	s *string
+	s      *string
+	null   bool
+	number *json.Number
 }
 
 func (v *Value) String() (*string, error) {
@@ -78,6 +90,19 @@ func (v *Value) String() (*string, error) {
 		return nil, NewValueError("expected string")
 	}
 	return v.s, nil
+}
+
+// Number returns the number value
+func (v *Value) Number() (*json.Number, error) {
+	if v.number == nil {
+		return nil, NewValueError("expected number")
+	}
+	return v.number, nil
+}
+
+// IsNull checks if the value is null
+func (v *Value) IsNull() bool {
+	return v.null
 }
 
 // ValueError represents an error related to a value.
