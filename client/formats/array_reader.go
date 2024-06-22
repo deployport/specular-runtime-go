@@ -13,7 +13,7 @@ type ArrayReader struct {
 	jr                    *json.Decoder
 	firstTokenAlreadyRead bool
 	parseUnknownFields    bool
-	unknownItems          []UnknownValue
+	unknownItems          []ComplexValue
 }
 
 // NewArrayReaderJSON creates a new JSON reader for an array in the stream
@@ -40,7 +40,7 @@ func (r *ArrayReader) UseUnknownItems() {
 
 // UnknownItems returns the unknown items, if any. Otherwise nil
 // UseUnknownItems must have been called prior reading
-func (r *ArrayReader) UnknownItems() []UnknownValue {
+func (r *ArrayReader) UnknownItems() []ComplexValue {
 	return r.unknownItems
 }
 
@@ -103,9 +103,9 @@ func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 				return fmt.Errorf("failed to read prop %d, %w", currentItem.Index, err)
 			} else if err == ErrUnknownField {
 				if r.unknownItems == nil && r.parseUnknownFields {
-					r.unknownItems = make([]UnknownValue, 0, 100)
+					r.unknownItems = make([]ComplexValue, 0, 100)
 				}
-				var finalValue UnknownValue
+				var finalValue ComplexValue
 				if !currentItem.Value.Value.IsEmpty() {
 					finalValue.Value = currentItem.Value.Value
 				} else if vr, err := currentItem.Value.Object(); !IsValueError(err) {

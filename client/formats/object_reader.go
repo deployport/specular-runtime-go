@@ -12,7 +12,7 @@ type ObjectReader struct {
 	jr                    *json.Decoder
 	firstTokenAlreadyRead bool
 	parseUnknownFields    bool
-	unknownFields         map[string]UnknownValue
+	unknownFields         map[string]ComplexValue
 }
 
 // NewObjectReaderJSON creates a new JSON reader
@@ -38,7 +38,7 @@ func (r *ObjectReader) UseUnknownFields() {
 
 // UnknownFields returns the unknown fields, if any. Otherwise nil
 // UseUnknownFields must have been called prior reading
-func (r *ObjectReader) UnknownFields() map[string]UnknownValue {
+func (r *ObjectReader) UnknownFields() map[string]ComplexValue {
 	return r.unknownFields
 }
 
@@ -108,9 +108,9 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 				return fmt.Errorf("failed to read prop %s, %w", currentProp.Name, err)
 			} else if err == ErrUnknownField {
 				if r.unknownFields == nil && r.parseUnknownFields {
-					r.unknownFields = make(map[string]UnknownValue)
+					r.unknownFields = make(map[string]ComplexValue)
 				}
-				var finalValue UnknownValue
+				var finalValue ComplexValue
 				if !currentProp.Value.Value.IsEmpty() {
 					finalValue.Value = currentProp.Value.Value
 				} else if vr, err := currentProp.Value.Object(); !IsValueError(err) {
