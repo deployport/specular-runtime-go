@@ -7,22 +7,7 @@ func NewHeartbeat() *Heartbeat {
 }
 
 // Heartbeat entity
-type Heartbeat struct {
-}
-
-// Hydrate deserializes the content into the struct
-func (e *Heartbeat) Hydrate(ctx *HydratationContext) error {
-	// if err := ContentRequireStringProperty(ctx.Content(), "message", &e.Message); err != nil {
-	// 	return err
-	// }
-	return nil
-}
-
-// Dehydrate serializes the struct into the content
-func (e *Heartbeat) Dehydrate(ctx *DehydrationContext) (err error) {
-	// ctx.Content().SetProperty("message", e.Message)
-	return nil
-}
+type Heartbeat struct{}
 
 // StructPath returns the struct path of the struct
 func (e *Heartbeat) StructPath() StructPath {

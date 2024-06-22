@@ -1,0 +1,57 @@
+@specular:Endpoint(base="http://localhost:8080")
+service package speculargo/testpackage
+
+enum BodyType{
+    Normal="normal"
+    Special="special"
+}
+
+struct Body {
+    contentLengthInt32: int32!
+    contentLengthInt64: int64!
+    contentLengthFloat32: float32!
+    contentLengthFloat64: float64!
+    contentLengthFloat64Nullable: float64
+    contentLengthUint32: uint32!
+    contentLengthUint64: uint64!
+    contentLengthUint64Nullable: uint64!
+    messageString: string!
+    messageStringNullable: string
+    createdAt: time!
+    createdAtNullable: time
+    fileData: binary!
+    fileDataNullable: binary
+    bodyType: BodyType!
+    bodyTypeNullable: BodyType
+}
+
+struct Response {
+    body: Body
+}
+
+
+problem struct NotFoundProblem {
+    title: string!
+    status: int32!
+    detail: string!
+}
+
+resource TestHTTP {
+    operation Get {
+        input struct {}
+        output struct {
+            response: Response
+        }
+    }
+    operation Other {
+        output struct {
+
+        }
+    }
+    streamed operation WatchChanges {
+        input struct {}
+        output struct {
+            response: Response
+        }
+    }
+}

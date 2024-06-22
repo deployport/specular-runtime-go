@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -94,9 +93,9 @@ func buildOperationExecution(
 	operationName := pre.Path.OperationName
 	logger.Debug("operation call", "resource-name", resourceName, "operation-name", operationName)
 	op := pre.Operation
-	inputContent := client.NewContent()
+	input := op.Input().TypeBuilder()()
 	dec := json.NewDecoder(requestBody)
-	if err := dec.Decode(&inputContent); err != nil {
+	if err := dec.Decode(&input); err != nil {
 		logger.Warn("failed to decode input content", "err", err)
 		return nil, &client.Error{
 			HTTPStatusCode: http.StatusBadRequest,
@@ -104,16 +103,6 @@ func buildOperationExecution(
 			Resource:       resourceName,
 			Operation:      operationName,
 			ErrorCode:      client.CallErrorCodeInvalidInput,
-		}
-	}
-	input := op.Input().TypeBuilder()()
-	if err := client.StructFromContent(inputContent, pk, input); err != nil {
-		return nil, &client.Error{
-			HTTPStatusCode: http.StatusBadRequest,
-			Message:        fmt.Sprintf("expected a valid input of type %s", input.StructPath().String()),
-			Resource:       resourceName,
-			Operation:      operationName,
-			ErrorCode:      client.CallErrorCodeInvalidStruct,
 		}
 	}
 	opx := &OperationExecution{

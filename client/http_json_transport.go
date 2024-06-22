@@ -191,16 +191,10 @@ func (t *HTTPJSONTransport) Stream(ctx context.Context, req *Request) (<-chan St
 }
 
 func (t *HTTPJSONTransport) createRequest(ctx context.Context, req *Request) (*http.Request, error) {
-	inputContent := NewContent()
-	err := req.Input.Dehydrate(NewDehydrationContext(inputContent))
+	inputBytes, err := json.Marshal(req.Input)
 	if err != nil {
 		return nil, err
 	}
-	inputBytes, err := json.Marshal(inputContent)
-	if err != nil {
-		return nil, err
-	}
-	// log.Printf("input bytes: %v", string(inputBytes))
 
 	var operationEndpointURI strings.Builder
 	operationEndpointURI.WriteString(t.EndpointURL)

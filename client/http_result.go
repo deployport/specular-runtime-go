@@ -54,13 +54,8 @@ func (r *HTTPResult) WriteResponse(w http.ResponseWriter) error {
 
 // WriteContent writes the content to the io.Writer
 func (r *HTTPResult) WriteContent(w io.Writer) error {
-	content := NewContent()
-	err := r.Struct.Dehydrate(NewDehydrationContext(content))
-	if err != nil {
-		return fmt.Errorf("failed to create content from struct: %w", err)
-	}
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(content); err != nil {
+	if err := enc.Encode(r.Struct); err != nil {
 		return fmt.Errorf("failed to encode content: %w", err)
 	}
 	return nil

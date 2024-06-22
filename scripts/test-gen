@@ -1,0 +1,3 @@
+#!/bin/sh
+
+specular-standalone-compiler generate -c test/specular.yaml

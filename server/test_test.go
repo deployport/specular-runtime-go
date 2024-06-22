@@ -11,16 +11,6 @@ func (e *BookCreateInput) StructPath() client.StructPath {
 	return *client.NewStructPath(*testModulePath, "bookcreateinput")
 }
 
-func (e *BookCreateInput) Hydrate(ctx *client.HydratationContext) error {
-	e.Name = ctx.Content().GetProperty("name").(string)
-	return nil
-}
-
-func (e *BookCreateInput) Dehydrate(ctx *client.DehydrationContext) error {
-	ctx.Content().SetProperty("name", e.Name)
-	return nil
-}
-
 type BookCreateOutput struct {
 	ID string `json:"id"`
 }
@@ -28,17 +18,6 @@ type BookCreateOutput struct {
 // StructPath returns the struct path of the struct
 func (e *BookCreateOutput) StructPath() client.StructPath {
 	return *client.NewStructPath(*testModulePath, "bookcreateoutput")
-}
-
-func (e *BookCreateOutput) Hydrate(ctx *client.HydratationContext) error {
-	e.ID = ctx.Content().GetProperty("id").(string)
-	return nil
-}
-
-func (e *BookCreateOutput) Dehydrate(ctx *client.DehydrationContext) error {
-	// ctx.Content().SetStruct(t.TypeFQTN().String())
-	ctx.Content().SetProperty("id", e.ID)
-	return nil
 }
 
 type BookCreationProblem struct {
@@ -52,19 +31,6 @@ func (e *BookCreationProblem) Error() string {
 // StructPath returns the struct path of the struct
 func (e *BookCreationProblem) StructPath() client.StructPath {
 	return *client.NewStructPath(*testModulePath, "bookcreationproblem")
-}
-
-// Hydrate hydrates the type from the content
-func (e *BookCreationProblem) Hydrate(ctx *client.HydratationContext) error {
-	e.Message = ctx.Content().GetProperty("message").(string)
-	return nil
-}
-
-// Dehydrate dehydrates the type into the content
-func (e *BookCreationProblem) Dehydrate(ctx *client.DehydrationContext) error {
-	// ctx.Content().SetStruct(e.TypeFQTN().String())
-	ctx.Content().SetProperty("message", e.Message)
-	return nil
 }
 
 // Is returns true if the error is of the same type

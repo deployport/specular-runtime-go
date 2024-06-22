@@ -47,13 +47,9 @@ func ParseHTTPClientResult(structFinder *StructDefinitionFinder, header http.Hea
 			return nil, err
 		}
 		dec := json.NewDecoder(body)
-		st := NewContent()
-		if err := dec.Decode(&st); err != nil {
-			return nil, err
-		}
 		sst := sd.TypeBuilder()()
-		if err := sst.Hydrate(NewHydratationContext(structFinder.User(), st)); err != nil {
-			return nil, fmt.Errorf("failed to hydrate output of operation, %w", err)
+		if err := dec.Decode(&sst); err != nil {
+			return nil, err
 		}
 		return &HTTPClientResult{
 			Single: sst,

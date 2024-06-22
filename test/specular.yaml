@@ -1,0 +1,10 @@
+packages:
+  - origin: "file://package.specular"
+    version: 0.0.1
+    path:
+      project: testpackage
+      workspace: speculargo
+    generate:
+      - language: go
+        client:
+          output: ./generated-client
