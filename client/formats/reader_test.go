@@ -3,6 +3,8 @@ package formats_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"testing"
 
@@ -387,4 +389,82 @@ func TestReaderEmpty(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, readNames)
+}
+
+func TestArrayReader(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		r := formats.NewArrayReaderJSON(bytes.NewReader([]byte(`["item1", "item2", "item3"]`)))
+		readItems := []string{}
+		err := r.Read(func(i *formats.ReaderItem) error {
+			v, err := i.Value.String()
+			require.NoError(t, err)
+			readItems = append(readItems, *v)
+			return nil
+		})
+		require.NoError(t, err)
+		require.Len(t, readItems, 3)
+		require.Contains(t, readItems, "item1")
+		require.Contains(t, readItems, "item2")
+		require.Contains(t, readItems, "item3")
+	})
+	t.Run("failing to read token", func(t *testing.T) {
+		r := formats.NewArrayReaderJSON(newfailReader(bytes.NewReader([]byte(`["item1", "item2", "item3"]`)), 1))
+		err := r.Read(func(i *formats.ReaderItem) error {
+			return nil
+		})
+		require.Error(t, err)
+	})
+	t.Run("object stream", func(t *testing.T) {
+		r := formats.NewArrayReaderJSON(bytes.NewReader([]byte(`{}`)))
+		err := r.Read(func(i *formats.ReaderItem) error {
+			return nil
+		})
+		require.Error(t, err)
+	})
+	t.Run("array item token error", func(t *testing.T) {
+		r := formats.NewArrayReaderJSON(bytes.NewReader([]byte(`[:]`)))
+		err := r.Read(func(i *formats.ReaderItem) error {
+			return nil
+		})
+		require.ErrorContains(t, err, "failed to decode array item token")
+	})
+	t.Run("array end token error", func(t *testing.T) {
+		r := formats.NewArrayReaderJSON(bytes.NewReader([]byte(`["1"}`)))
+		err := r.Read(func(i *formats.ReaderItem) error {
+			return nil
+		})
+		require.ErrorContains(t, err, "failed to decode end of array token")
+	})
+}
+
+// failReader is an io.Reader that fails after N bytes.
+type failReader struct {
+	r         io.Reader // The underlying reader.
+	n         int       // Number of bytes after which to fail.
+	bytesRead int       // Counter for the number of bytes read.
+}
+
+// NewfailReader creates a new failReader.
+func newfailReader(r io.Reader, n int) *failReader {
+	return &failReader{
+		r: r,
+		n: n,
+	}
+}
+
+// Read reads data into p. It fails with an error after N bytes.
+func (f *failReader) Read(p []byte) (int, error) {
+	return 0, fmt.Errorf("intentional error after %d bytes", f.n)
+	// log.Printf("cap: %v", cap(p))
+	// if f.bytesRead >= f.n {
+	// 	return 0, errors.New("custom error after N bytes")
+	// }
+
+	// n, err := f.r.Read(p[:f.n-f.bytesRead])
+	// f.bytesRead += n
+	// if f.bytesRead > f.n {
+	// 	// Simulate an error after reading more than N bytes.
+	// 	return n, errors.New("custom error after N bytes")
+	// }
+	// return n, err
 }

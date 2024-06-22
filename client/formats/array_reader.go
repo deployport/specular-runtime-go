@@ -70,7 +70,7 @@ func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 	for dec.More() {
 		tk, err := dec.Token()
 		if err != nil {
-			return fmt.Errorf("failed to decode token, %w", err)
+			return fmt.Errorf("failed to decode array item token, %w", err)
 		}
 		currentItem.Index = index
 		r.logf("read token %v", tk)
@@ -133,12 +133,12 @@ func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 			continue
 		}
 	}
-	tk, err := dec.Token() // read ']'
+	_, err := dec.Token() // read ']'
 	if err != nil {
-		return fmt.Errorf("failed to decode token, %w", err)
+		return fmt.Errorf("failed to decode end of array token, %w", err)
 	}
-	if tk == json.Delim(']') {
-		return nil
-	}
+	// if tk != json.Delim(']') {
+	// 	return fmt.Errorf("expected end of array, got %v", tk)
+	// }
 	return nil
 }

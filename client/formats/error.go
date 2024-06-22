@@ -1,6 +1,9 @@
 package formats
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrUnknownField is an error for unknown fields
 var ErrUnknownField = fmt.Errorf("unknown field")
@@ -28,6 +31,7 @@ func (e *ValueError) Is(target error) bool {
 
 // IsValueError checks if the given error is a ValueError.
 func IsValueError(err error) bool {
-	_, ok := err.(*ValueError)
-	return ok
+	return errors.Is(err, genericValueError)
 }
+
+var genericValueError = &ValueError{}
