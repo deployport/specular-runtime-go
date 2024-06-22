@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fastjson"
-	"go.deployport.com/specular-runtime/client/formats"
+	formats "go.deployport.com/specular-runtime/client/formats2"
 )
 
 func TestReader(t *testing.T) {

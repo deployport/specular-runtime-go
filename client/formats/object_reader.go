@@ -69,7 +69,9 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 		if err != nil {
 			return fmt.Errorf("failed to decode token, %w", err)
 		}
-		r.logf("read token %v", tk)
+		if r.isLoggingEnabled() {
+			r.logf("read token %v", tk)
+		}
 		if currentProp.IsEmpty() {
 			// check if token is an string
 			if name, ok := tk.(string); ok {
@@ -80,12 +82,16 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 		}
 		if !currentProp.IsEmpty() && currentProp.Value.IsEmpty() {
 			// start reading a value
-			r.logf("reading value for prop %s, %#v", currentProp.Name, tk)
+			if r.isLoggingEnabled() {
+				r.logf("reading value for prop %s, %#v", currentProp.Name, tk)
+			}
 			if v, ok := tk.(string); ok {
 				currentProp.Value.s = &v
 			} else if tk == nil {
 				currentProp.Value.null = true
 			} else if v, ok := tk.(json.Number); ok {
+				currentProp.Value.number = &v
+			} else if _, ok := tk.(float64); ok {
 				currentProp.Value.number = &v
 			} else if v, ok := tk.(json.Delim); ok {
 				if v == json.Delim('{') {

@@ -16,22 +16,22 @@ func NewBody() *Body {
 
 // Body entity
 type Body struct {
-	BodyType                     BodyType
-	BodyTypeNullable             *BodyType
-	ContentLengthFloat32         float32
-	ContentLengthFloat64         float64
-	ContentLengthFloat64Nullable *float64
-	ContentLengthInt32           int32
-	ContentLengthInt64           int64
-	ContentLengthUint32          uint32
-	ContentLengthUint64          uint64
-	ContentLengthUint64Nullable  uint64
-	CreatedAt                    time.Time
-	CreatedAtNullable            *time.Time
-	FileData                     []byte
-	FileDataNullable             []byte
-	MessageString                string
-	MessageStringNullable        *string
+	BodyType                     BodyType   `json:"bodyType,omitempty"`
+	BodyTypeNullable             *BodyType  `json:"bodyTypeNullable,omitempty"`
+	ContentLengthFloat32         float32    `json:"contentLengthFloat32,omitempty"`
+	ContentLengthFloat64         float64    `json:"contentLengthFloat64,omitempty"`
+	ContentLengthFloat64Nullable *float64   `json:"contentLengthFloat64Nullable,omitempty"`
+	ContentLengthInt32           int32      `json:"contentLengthInt32,omitempty"`
+	ContentLengthInt64           int64      `json:"contentLengthInt64,omitempty"`
+	ContentLengthUint32          uint32     `json:"contentLengthUint32,omitempty"`
+	ContentLengthUint64          uint64     `json:"contentLengthUint64,omitempty"`
+	ContentLengthUint64Nullable  uint64     `json:"contentLengthUint64Nullable,omitempty"`
+	CreatedAt                    time.Time  `json:"createdAt,omitempty"`
+	CreatedAtNullable            *time.Time `json:"createdAtNullable,omitempty"`
+	FileData                     []byte     `json:"fileData,omitempty"`
+	FileDataNullable             []byte     `json:"fileDataNullable,omitempty"`
+	MessageString                string     `json:"messageString,omitempty"`
+	MessageStringNullable        *string    `json:"messageStringNullable,omitempty"`
 }
 
 // GetBodyType returns the value for the field bodyType
@@ -281,7 +281,7 @@ func NewResponse() *Response {
 
 // Response entity
 type Response struct {
-	Body *Body
+	Body *Body `json:"body,omitempty"`
 }
 
 // GetBody returns the value for the field body
@@ -329,10 +329,10 @@ func NewNotFoundProblem() *NotFoundProblem {
 
 // NotFoundProblem entity
 type NotFoundProblem struct {
-	Detail  string
-	Status  int32
-	Title   string
-	Message string
+	Detail  string `json:"detail,omitempty"`
+	Status  int32  `json:"status,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // Error implements the error interface
@@ -455,7 +455,7 @@ func NewTestHTTPGetOutput() *TestHTTPGetOutput {
 
 // TestHTTPGetOutput entity
 type TestHTTPGetOutput struct {
-	Response *Response
+	Response *Response `json:"response,omitempty"`
 }
 
 // GetResponse returns the value for the field response
@@ -578,7 +578,7 @@ func NewTestHTTPWatchChangesOutput() *TestHTTPWatchChangesOutput {
 
 // TestHTTPWatchChangesOutput entity
 type TestHTTPWatchChangesOutput struct {
-	Response *Response
+	Response *Response `json:"response,omitempty"`
 }
 
 // GetResponse returns the value for the field response
