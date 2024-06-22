@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 )
 
 // ObjectReader represents a JSON reader
 type ObjectReader struct {
+	logger
 	jr                    *json.Decoder
 	firstTokenAlreadyRead bool
-	logPrefix             string
 	parseUnknownFields    bool
 	unknownFields         map[string]UnknownValue
 }
@@ -24,11 +23,12 @@ func NewObjectReaderJSON(jsonStream io.Reader) *ObjectReader {
 }
 
 func newSubObjectReader(jr *json.Decoder, logPrefix string) *ObjectReader {
-	return &ObjectReader{
+	r := &ObjectReader{
 		jr:                    jr,
 		firstTokenAlreadyRead: true,
-		logPrefix:             logPrefix,
 	}
+	r.logger.logPrefix = logPrefix
+	return r
 }
 
 // UseUnknownFields allows the reader to parse unknown fields
@@ -40,16 +40,6 @@ func (r *ObjectReader) UseUnknownFields() {
 // UseUnknownFields must have been called prior reading
 func (r *ObjectReader) UnknownFields() map[string]UnknownValue {
 	return r.unknownFields
-}
-
-// logf prints a log message
-func (r *ObjectReader) logf(format string, args ...interface{}) {
-	if r.logPrefix != "" {
-		format = "(" + r.logPrefix + ") " + format
-	} else {
-		format = "(root reader) " + format
-	}
-	log.Printf(format, args...)
 }
 
 // ReadPropFunc is a function type for reading properties
@@ -125,22 +115,16 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 					finalValue.Value = currentProp.Value.Value
 				} else if vr, err := currentProp.Value.Object(); !IsValueError(err) {
 					// we always parse objects so the json decoder moves forward
-					if err != nil {
-						return fmt.Errorf("failed to read unknown prop %s, %w", currentProp.Name, err)
-					}
 					if err := vr.Read(unknownPropReader); err != nil {
 						return fmt.Errorf("failed to read unknown prop %s, %w", currentProp.Name, err)
 					}
-					finalValue.Object = vr.UnknownFields()
+					finalValue.object = vr.UnknownFields()
 				} else if vr, err := currentProp.Value.Array(); !IsValueError(err) {
 					// we always parse arrays so the json decoder moves forward
-					if err != nil {
-						return fmt.Errorf("failed to load unknown object prop %s, %w", currentProp.Name, err)
-					}
 					if err := vr.Read(unknownItemReader); err != nil {
 						return fmt.Errorf("failed to load unknown array prop %s, %w", currentProp.Name, err)
 					}
-					finalValue.Array = vr.UnknownItems()
+					finalValue.array = vr.UnknownItems()
 				}
 				// we always parse unknown fields so the parser moves on, but we don't retain values if they are empty or
 				// unknown fields are not enabled

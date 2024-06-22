@@ -229,7 +229,14 @@ func TestReaderUnknownsComplex(t *testing.T) {
 				"type": "pdf"
 			},
 			"count": 123.4,
-			"fruits": ["apple", "banana"]
+			"fruits": ["apple", "banana", null, 55454],
+			"contList": [
+				{
+					"name": "container one"
+				},
+				[1]
+			],
+			"knownList": ["ok"]
 		}
 	`)))
 		r.UseUnknownFields()
@@ -244,6 +251,23 @@ func TestReaderUnknownsComplex(t *testing.T) {
 				require.NoError(t, err)
 				readStrings[p.Name] = *v
 				require.False(t, p.Value.IsNull())
+				return nil
+			case "knownList":
+				// we parse knownList right after the container object
+				// to make sure the json decoder for sub-objects moves forward
+				v, err := p.Value.Array()
+				require.NoError(t, err)
+				err = v.Read(func(i *formats.ReaderItem) error {
+					log.Printf("known item %d", i.Index)
+					if i.Index == 0 {
+						v, err := i.Value.String()
+						require.NoError(t, err)
+						require.Equal(t, "ok", *v)
+						return nil
+					}
+					return formats.ErrUnknownField
+				})
+				require.NoError(t, err)
 				return nil
 			default:
 				return formats.ErrUnknownField
@@ -264,11 +288,49 @@ func TestReaderUnknownsComplex(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "123.4", count.String())
 		container1Value := unknowns["container1"]
-		container1Type := container1Value.Object["type"]
+		container1Object, err := container1Value.Object()
+		container1Type := container1Object["type"]
 		require.NoError(t, err)
 		v, err := container1Type.String()
 		require.NoError(t, err)
 		require.Equal(t, "pdf", *v)
+		require.Contains(t, unknowns, "fruits")
+		fruitsValue := unknowns["fruits"]
+		fruits, err := fruitsValue.Array()
+		require.NoError(t, err)
+		require.Len(t, fruits, 4)
+		fruits0 := fruits[0]
+		fruits0Value, err := fruits0.String()
+		require.NoError(t, err)
+		require.Equal(t, "apple", *fruits0Value)
+		fruits1 := fruits[1]
+		fruits1Value, err := fruits1.String()
+		require.NoError(t, err)
+		require.Equal(t, "banana", *fruits1Value)
+		fruits2 := fruits[2]
+		require.True(t, fruits2.IsNull())
+		fruits3 := fruits[3]
+		fruits3Value, err := fruits3.Number()
+		require.NoError(t, err)
+		require.Equal(t, "55454", fruits3Value.String())
+		require.Contains(t, unknowns, "contList")
+		contListValue := unknowns["contList"]
+		contList, err := contListValue.Array()
+		require.NoError(t, err)
+		require.Len(t, contList, 2)
+		contList0 := contList[0]
+		contList0Object, err := contList0.Object()
+		contList0Name := contList0Object["name"]
+		v, err = contList0Name.String()
+		require.NoError(t, err)
+		require.Equal(t, "container one", *v)
+		nestedArray := contList[1]
+		nestedArrayValue, err := nestedArray.Array()
+		require.NoError(t, err)
+		require.Len(t, nestedArrayValue, 1)
+		nestedArrayValue0, err := nestedArrayValue[0].Number()
+		require.NoError(t, err)
+		require.Equal(t, "1", nestedArrayValue0.String())
 	})
 	t.Run("not parsing", func(t *testing.T) {
 		r := formats.NewObjectReaderJSON(bytes.NewReader([]byte(`

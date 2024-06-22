@@ -66,3 +66,17 @@ func (v *Value) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(nil)
 }
+
+// Type returns the value type
+func (v *Value) Type() ValueType {
+	if v.s != nil {
+		return ValueTypeString
+	}
+	if v.number != nil {
+		return ValueTypeNumber
+	}
+	if v.null {
+		return ValueTypeNull
+	}
+	return ValueTypeUnknown
+}

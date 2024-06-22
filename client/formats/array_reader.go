@@ -4,32 +4,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 )
 
 // ArrayReader represents a JSON reader for arrays
 type ArrayReader struct {
+	logger
 	jr                    *json.Decoder
 	firstTokenAlreadyRead bool
-	logPrefix             string
 	parseUnknownFields    bool
 	unknownItems          []UnknownValue
 }
 
-// NewArrayReaderJSON creates a new JSON reader for arrays
+// NewArrayReaderJSON creates a new JSON reader for an array in the stream
 func NewArrayReaderJSON(jsonStream io.Reader) *ArrayReader {
-	return &ArrayReader{
+	r := &ArrayReader{
 		jr: json.NewDecoder(jsonStream),
 	}
+	return r
 }
 
 func newSubArrayReader(jr *json.Decoder, logPrefix string) *ArrayReader {
-	return &ArrayReader{
+	r := &ArrayReader{
 		jr:                    jr,
 		firstTokenAlreadyRead: true,
-		logPrefix:             logPrefix,
 	}
+	r.logger.logPrefix = logPrefix
+	return r
 }
 
 // UseUnknownItems allows the reader to parse unknown fields
@@ -41,16 +42,6 @@ func (r *ArrayReader) UseUnknownItems() {
 // UseUnknownItems must have been called prior reading
 func (r *ArrayReader) UnknownItems() []UnknownValue {
 	return r.unknownItems
-}
-
-// logf prints a log message
-func (r *ArrayReader) logf(format string, args ...interface{}) {
-	if r.logPrefix != "" {
-		format = "(" + r.logPrefix + ") " + format
-	} else {
-		format = "(root reader) " + format
-	}
-	log.Printf(format, args...)
 }
 
 // ReadItemFunc is a function type for reading array items
@@ -119,22 +110,16 @@ func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 					finalValue.Value = currentItem.Value.Value
 				} else if vr, err := currentItem.Value.Object(); !IsValueError(err) {
 					// we always parse objects so the json decoder moves forward
-					if err != nil {
-						return fmt.Errorf("failed to read unknown item %v, %w", currentItem.Index, err)
-					}
 					if err := vr.Read(unknownPropReader); err != nil {
 						return fmt.Errorf("failed to read unknown item %v, %w", currentItem.Index, err)
 					}
-					finalValue.Object = vr.UnknownFields()
+					finalValue.object = vr.UnknownFields()
 				} else if vr, err := currentItem.Value.Array(); !IsValueError(err) {
 					// we always parse arrays so the json decoder moves forward
-					if err != nil {
-						return fmt.Errorf("failed to load unknown object item %d, %w", currentItem.Index, err)
-					}
 					if err := vr.Read(unknownItemReader); err != nil {
 						return fmt.Errorf("failed to load unknown array item %d, %w", currentItem.Index, err)
 					}
-					finalValue.Array = vr.UnknownItems()
+					finalValue.array = vr.UnknownItems()
 				}
 				// we always parse unknown fields so the parser moves on, but we don't retain values if they are empty or
 				// unknown fields are not enabled
