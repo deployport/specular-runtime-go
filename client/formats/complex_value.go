@@ -3,9 +3,15 @@ package formats
 // ComplexValue represents an unknown value
 type ComplexValue struct {
 	Value
-	object map[string]ComplexValue
-	array  []ComplexValue
+	object ComplexValueFields
+	array  ComplexValueItems
 }
+
+// ComplexValueFields represents a map of complex values, the key is the name of the field
+type ComplexValueFields map[string]ComplexValue
+
+// ComplexValueItems represents an array of complex values
+type ComplexValueItems []ComplexValue
 
 // NewComplexValueObject creates a new complex value array
 func NewComplexValueObject(object map[string]ComplexValue) *ComplexValue {

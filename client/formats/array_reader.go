@@ -10,10 +10,10 @@ import (
 // ArrayReader represents a JSON reader for arrays
 type ArrayReader struct {
 	logger
-	jr                    *json.Decoder
-	firstTokenAlreadyRead bool
-	parseUnknownFields    bool
-	unknownItems          []ComplexValue
+	jr                *json.Decoder
+	openingTokenRead  bool
+	parseUnknownItems bool
+	unknownItems      ComplexValueItems
 }
 
 // NewArrayReaderJSON creates a new JSON reader for an array in the stream
@@ -26,8 +26,8 @@ func NewArrayReaderJSON(jsonStream io.Reader) *ArrayReader {
 
 func newSubArrayReader(jr *json.Decoder, logPrefix string) *ArrayReader {
 	r := &ArrayReader{
-		jr:                    jr,
-		firstTokenAlreadyRead: true,
+		jr:               jr,
+		openingTokenRead: true,
 	}
 	r.logger.logPrefix = logPrefix
 	return r
@@ -35,12 +35,12 @@ func newSubArrayReader(jr *json.Decoder, logPrefix string) *ArrayReader {
 
 // UseUnknownItems allows the reader to parse unknown fields
 func (r *ArrayReader) UseUnknownItems() {
-	r.parseUnknownFields = true
+	r.parseUnknownItems = true
 }
 
 // UnknownItems returns the unknown items, if any. Otherwise nil
 // UseUnknownItems must have been called prior reading
-func (r *ArrayReader) UnknownItems() []ComplexValue {
+func (r *ArrayReader) UnknownItems() ComplexValueItems {
 	return r.unknownItems
 }
 
@@ -51,11 +51,12 @@ type ReadItemFunc func(i *ReaderItem) error
 // The given item instance is reused and should not be retained outside the function.
 // The function should return an error if the item could not be read.
 // The function should return nil if the item was read successfully.
+// If the reader doesn't know the item, it must not read the item and return ErrUnknownField
 func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 	dec := r.jr
 	dec.UseNumber()
 
-	if !r.firstTokenAlreadyRead {
+	if !r.openingTokenRead {
 		tk, err := dec.Token() // read '['
 		if err != nil {
 			return fmt.Errorf("failed to decode token, %w", err)
@@ -85,13 +86,13 @@ func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 			} else if v, ok := tk.(json.Delim); ok {
 				if v == json.Delim('{') {
 					subReader := newSubObjectReader(dec, "reader for "+strconv.FormatInt(int64(currentItem.Index), 10))
-					if r.parseUnknownFields {
+					if r.parseUnknownItems {
 						subReader.UseUnknownFields()
 					}
 					currentItem.Value.object = subReader
 				} else if v == json.Delim('[') {
 					subReader := newSubArrayReader(dec, "reader for "+strconv.FormatInt(int64(currentItem.Index), 10))
-					if r.parseUnknownFields {
+					if r.parseUnknownItems {
 						subReader.UseUnknownItems()
 					}
 					currentItem.Value.array = subReader
@@ -102,8 +103,8 @@ func (r *ArrayReader) Read(readItem ReadItemFunc) error {
 			if err := readItem(&currentItem); err != nil && err != ErrUnknownField {
 				return fmt.Errorf("failed to read prop %d, %w", currentItem.Index, err)
 			} else if err == ErrUnknownField {
-				if r.unknownItems == nil && r.parseUnknownFields {
-					r.unknownItems = make([]ComplexValue, 0, 100)
+				if r.unknownItems == nil && r.parseUnknownItems {
+					r.unknownItems = make(ComplexValueItems, 0, 100)
 				}
 				var finalValue ComplexValue
 				if !currentItem.Value.Value.IsEmpty() {

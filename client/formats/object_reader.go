@@ -9,10 +9,10 @@ import (
 // ObjectReader represents a JSON reader
 type ObjectReader struct {
 	logger
-	jr                    *json.Decoder
-	firstTokenAlreadyRead bool
-	parseUnknownFields    bool
-	unknownFields         map[string]ComplexValue
+	jr                 *json.Decoder
+	openingTokenRead   bool
+	parseUnknownFields bool
+	unknownFields      ComplexValueFields
 }
 
 // NewObjectReaderJSON creates a new JSON reader
@@ -24,8 +24,8 @@ func NewObjectReaderJSON(jsonStream io.Reader) *ObjectReader {
 
 func newSubObjectReader(jr *json.Decoder, logPrefix string) *ObjectReader {
 	r := &ObjectReader{
-		jr:                    jr,
-		firstTokenAlreadyRead: true,
+		jr:               jr,
+		openingTokenRead: true,
 	}
 	r.logger.logPrefix = logPrefix
 	return r
@@ -38,7 +38,7 @@ func (r *ObjectReader) UseUnknownFields() {
 
 // UnknownFields returns the unknown fields, if any. Otherwise nil
 // UseUnknownFields must have been called prior reading
-func (r *ObjectReader) UnknownFields() map[string]ComplexValue {
+func (r *ObjectReader) UnknownFields() ComplexValueFields {
 	return r.unknownFields
 }
 
@@ -49,11 +49,12 @@ type ReadPropFunc func(p *ReaderProp) error
 // The given property instance is reused and should not be cached outside the function.
 // The function should return an error if the property could not be read.
 // The function should return nil if the property was read successfully.
+// If the reader doesn't know the field, it must not read the field and return ErrUnknownField
 func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 	dec := r.jr
 	dec.UseNumber()
 
-	if !r.firstTokenAlreadyRead {
+	if !r.openingTokenRead {
 		tk, err := dec.Token() // read '{'
 		if err != nil {
 			return fmt.Errorf("failed to decode token, %w", err)
@@ -108,7 +109,7 @@ func (r *ObjectReader) Read(readProp ReadPropFunc) error {
 				return fmt.Errorf("failed to read prop %s, %w", currentProp.Name, err)
 			} else if err == ErrUnknownField {
 				if r.unknownFields == nil && r.parseUnknownFields {
-					r.unknownFields = make(map[string]ComplexValue)
+					r.unknownFields = make(ComplexValueFields)
 				}
 				var finalValue ComplexValue
 				if !currentProp.Value.Value.IsEmpty() {
