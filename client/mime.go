@@ -83,7 +83,6 @@ func (m MIME) StructPath() (*StructPath, error) {
 	}
 	parts := strings.Split(m.tp, ".")
 	partsLen := len(parts)
-	fmt.Printf("parts: %v", parts)
 	if partsLen < 4 {
 		return nil, fmt.Errorf("invalid struct path")
 	}
