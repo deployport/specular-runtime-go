@@ -73,3 +73,35 @@ func CallTypedStreamHandler[TInput client.Struct, TOutput client.Struct](
 	}()
 	return to, nil
 }
+
+type StreamEvent[T client.Struct] interface {
+	GetErr() error
+	GetOutput() T
+}
+
+// CallTypedStreamHandlerOperationExecution is a function that calls a stream handler with typed input and output
+func CallTypedStreamHandlerOperationExecution[
+	TOpex any,
+	TOutput client.Struct,
+	TEvent StreamEvent[TOutput],
+](
+	ctx context.Context,
+	opex TOpex,
+	handler func(ctx context.Context, opex TOpex) (<-chan TEvent, error),
+) (<-chan client.StreamEvent[client.Struct], error) {
+	to := make(chan client.StreamEvent[client.Struct])
+	from, err := handler(ctx, opex)
+	if err != nil {
+		return nil, err
+	}
+	go func() {
+		defer close(to)
+		for ev := range from {
+			to <- client.StreamEvent[client.Struct]{
+				Err:    ev.GetErr(),
+				Output: ev.GetOutput(),
+			}
+		}
+	}()
+	return to, nil
+}
