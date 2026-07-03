@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // HTTPClientResult is the result of a HTTP client
@@ -42,8 +43,23 @@ func ParseHTTPClientResult(structFinder *StructDefinitionFinder, header http.Hea
 		return nil, err
 	}
 	if structPath != nil {
+		isError := false
+		if kind, ok := contentMime.Parameter("kind"); ok && strings.EqualFold(kind, "error") {
+			isError = true
+		}
 		sd, err := structFinder.Find(*structPath)
 		if err != nil {
+			// An error envelope whose type this client was not generated with
+			// must still surface as an error, never as a decode failure.
+			if isError && IsTypeNotFoundError(err) {
+				ue, uerr := newUnknownRPCError(*structPath, body)
+				if uerr != nil {
+					return nil, uerr
+				}
+				return &HTTPClientResult{
+					Single: ue,
+				}, nil
+			}
 			return nil, err
 		}
 		dec := json.NewDecoder(body)

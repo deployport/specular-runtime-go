@@ -123,7 +123,7 @@ func (pre *PreOperationExecution) BuildFinalResult(
 ) *client.HTTPResult {
 	if errOrStruct != nil {
 		if errStruct, ok := errOrStruct.(client.Struct); ok {
-			return client.HTTPResultForStruct(errStruct)
+			return client.HTTPResultForErrorStruct(errStruct)
 		}
 		err := errOrStruct
 		if IsAuthenticationError(err) {
@@ -137,7 +137,7 @@ func (pre *PreOperationExecution) BuildFinalResult(
 		}
 		handledErrStruct := pre.handleUnhandledError(pre, err)
 		if handledErrStruct != nil {
-			return client.HTTPResultForStruct(handledErrStruct)
+			return client.HTTPResultForErrorStruct(handledErrStruct)
 		}
 		pre.Logger.Warn("internal server error", "err", err)
 		return client.HTTPResultForError(pre.createInternalServiceError())

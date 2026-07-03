@@ -78,3 +78,35 @@ func TestService(t *testing.T) {
 	// check output is correct
 	require.Equal(t, "invalid name", creationProblem.Message)
 }
+
+// TestServiceRoutesIgnoringPathPrefix verifies the same server routes correctly
+// whether the client mounts it at the root, /api, or /admin/api. routing is on
+// the last two path segments, so any mount prefix is transparent.
+func TestServiceRoutesIgnoringPathPrefix(t *testing.T) {
+	pk, err := testPackage()
+	require.NoError(t, err)
+	resource := pk.FindResource("Book")
+	opCreate := resource.FindOperation("Create")
+
+	svc := NewService(
+		WithServicePackage(pk),
+		WithOperationHandler(OperationHandlerFunc(func(ctx context.Context, op *OperationExecution) (client.Struct, error) {
+			return &BookCreateOutput{ID: "123"}, nil
+		})),
+	)
+	server := httptest.NewServer(svc)
+	defer server.Close()
+
+	for _, prefix := range []string{"", "/api", "/admin/api"} {
+		t.Run("prefix "+prefix, func(t *testing.T) {
+			transport, err := client.NewHTTPJSONTransport(server.URL+prefix, client.WithHTTPJSONTransportClient(server.Client()))
+			require.NoError(t, err)
+			cl, err := client.NewClient(client.WithTransport(transport))
+			require.NoError(t, err)
+			output, err := cl.Execute(context.TODO(), opCreate, &BookCreateInput{Name: "foo"})
+			require.NoError(t, err)
+			require.IsType(t, &BookCreateOutput{}, output)
+			require.Equal(t, "123", output.(*BookCreateOutput).ID)
+		})
+	}
+}

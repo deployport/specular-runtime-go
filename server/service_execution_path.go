@@ -13,51 +13,34 @@ type OperationExecutionPath struct {
 	OperationName string
 }
 
-// parseOperationExecutionPathFromURIPath returns the operation execution header from the URI path
+// parseOperationExecutionPathFromURIPath resolves the resource and operation
+// from the request URI path.
+//
+// Specular routes on the LAST TWO path segments only: the second-to-last segment
+// is the resource (its package-unique name, always a single segment, since
+// nested resources are concatenated without a separator) and the last segment is
+// the operation. Any leading prefix segments (for example a mount path like
+// "/admin/api") are ignored for routing
 func parseOperationExecutionPathFromURIPath(path string) (*OperationExecutionPath, *client.Error) {
-	// path is of the form /<resource-name>/<operation-name>
-	// we need to extract the resource name and operation name
-	// we can do this by finding the first slash and then taking the first part as the resource name and the second part as the operation name
-	rp := strings.TrimPrefix(path, "/")
-	slashPathIndex := strings.Index(rp, "/")
-	if slashPathIndex == -1 {
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	if len(segments) < 2 {
 		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "expected a valid path to execute a resource operation",
 			ErrorCode:      client.CallErrorCodeMalformedRequest,
 		}
 	}
-	// resource name is the first part of the path and is the package unique resource name
-	resourceName := rp[0:slashPathIndex]
+	resourceName := segments[len(segments)-2]
+	operationName := segments[len(segments)-1]
 
-	// check if resource name has empty spaces
-	if strings.Contains(resourceName, " ") {
+	if resourceName == "" || strings.Contains(resourceName, " ") {
 		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "invalid resource name",
 			ErrorCode:      client.CallErrorCodeMalformedRequest,
 		}
 	}
-
-	if resourceName == "" {
-		return nil, &client.Error{
-			HTTPStatusCode: http.StatusNotFound,
-			Message:        "resource not found",
-			ErrorCode:      client.CallErrorCodeResourceNotFound,
-		}
-	}
-	operationName := rp[slashPathIndex+1:]
-	if operationName == "" {
-		return nil, &client.Error{
-			HTTPStatusCode: http.StatusNotFound,
-			Message:        "operation not found",
-			Resource:       resourceName,
-			ErrorCode:      client.CallErrorCodeMalformedRequest,
-		}
-	}
-
-	// check if operation name has empty spaces
-	if strings.Contains(operationName, " ") {
+	if operationName == "" || strings.Contains(operationName, " ") {
 		return nil, &client.Error{
 			HTTPStatusCode: http.StatusNotFound,
 			Message:        "invalid operation name",

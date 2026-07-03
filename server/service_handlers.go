@@ -74,6 +74,8 @@ func CallTypedStreamHandler[TInput client.Struct, TOutput client.Struct](
 	return to, nil
 }
 
+// StreamEvent represents a single event emitted by a stream handler, exposing
+// either an error or a typed output value.
 type StreamEvent[T client.Struct] interface {
 	GetErr() error
 	GetOutput() T
