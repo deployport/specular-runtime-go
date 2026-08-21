@@ -61,14 +61,34 @@ func (r *HTTPResult) MimeType() string {
 	return mime
 }
 
+// HTTPStatusCarrier is implemented by a user-defined error struct that declares
+// its own HTTP status with @specular:Status. The generator emits the method
+// only for an annotated struct, so an error that was never annotated does not
+// satisfy this interface and keeps the 400 default.
+type HTTPStatusCarrier interface {
+	// HTTPStatus returns the advisory status the error is served with.
+	HTTPStatus() int
+}
+
 // HTTPStatusCode returns the result's HTTP status code, which is advisory: the
 // envelope (content type plus kind) is authoritative. Built-in errors carry
-// their own status, user-defined errors use 400, and regular outputs use 200.
+// their own status, a user-defined error carries the status it declared with
+// @specular:Status, every other user-defined error uses 400, and regular
+// outputs use 200.
 func (r *HTTPResult) HTTPStatusCode() int {
+	// The built-in branch stays first on purpose. A built-in error already
+	// carries a status from the reserved table, and nothing generated may
+	// override it.
 	if e, ok := r.Struct.(*Error); ok {
 		return e.HTTPStatusCode
 	}
 	if r.IsError {
+		// The declared status is read inside the error branch, never outside
+		// it, so a 4xx or a 5xx can only ever accompany kind=error. A struct
+		// sent as a regular output keeps 200 even if it carries a status.
+		if s, ok := r.Struct.(HTTPStatusCarrier); ok {
+			return s.HTTPStatus()
+		}
 		return http.StatusBadRequest
 	}
 	return http.StatusOK

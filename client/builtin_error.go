@@ -10,11 +10,11 @@ func NewError() *Error {
 
 // Error entity
 type Error struct {
-	Message        string `json:"message,omitempty1"`
-	Resource       string `json:"resource,omitempty"`
-	Operation      string `json:"operation,omitempty"`
-	HTTPStatusCode int    `json:"-"`
-	ErrorCode      CallErrorCode
+	Message        string        `json:"message,omitempty"`
+	Resource       string        `json:"resource,omitempty"`
+	Operation      string        `json:"operation,omitempty"`
+	HTTPStatusCode int           `json:"-"`
+	ErrorCode      CallErrorCode `json:"code,omitempty"`
 }
 
 // Error implements the error interface
