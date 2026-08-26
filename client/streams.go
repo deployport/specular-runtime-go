@@ -6,8 +6,10 @@ func UnwrapStreamHandler[TOut Struct](from <-chan StreamEvent[Struct]) chan Stre
 	go func() {
 		defer close(to)
 		for ev := range from {
+			// Output is nil on error events
+			out, _ := ev.Output.(TOut)
 			to <- StreamEvent[TOut]{
-				Output: ev.Output.(TOut),
+				Output: out,
 				Err:    ev.Err,
 			}
 		}

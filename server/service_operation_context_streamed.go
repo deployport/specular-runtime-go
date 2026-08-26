@@ -44,6 +44,9 @@ func serveServiceOperationStream(
 }
 
 func (octx *serviceOperationStreamServeContext) prepareMultipart(w http.ResponseWriter) {
+	// Server.WriteTimeout is set once when the headers are read and never extended
+	// Clearing it is best effort and a wrapped ResponseWriter may not support it
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
 	octx.writer = multipart.NewWriter(w)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Connection", "Keep-Alive")
