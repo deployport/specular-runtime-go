@@ -14,6 +14,17 @@ jobs:
         id: go
       - name: Check out
         uses: actions/checkout@v4
+      - name: No internal files
+        run: |
+          # This repository is public. It carries code, tests and the README a
+          # consumer needs, and nothing about how the company runs.
+          bad=$(git ls-files | grep -Ei '(^|/)(plans/|AGENTS\.md$|CLAUDE\.md$|CLAUDE\.local\.md$|\.claude/)' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::a public repository holds internal files"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+          echo "no internal files"
       - name: Get dependencies
         run: go get -v -t -d ./...
       - name: Test
