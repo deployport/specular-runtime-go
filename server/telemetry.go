@@ -84,10 +84,6 @@ type telemetrySeries struct {
 	// sum is the total duration in nanoseconds.
 	sum   atomic.Int64
 	count atomic.Int64
-	// total counts the requests, whatever the duration. It is the counter
-	// beside the histogram, so a failing endpoint is one query and needs no
-	// bucket.
-	total atomic.Int64
 }
 
 func newTelemetrySeries(stream bool) *telemetrySeries {
@@ -248,9 +244,6 @@ func (r *telemetryRecorder) observe(op *client.Operation, status int, took time.
 		return
 	}
 	series.observe(took)
-	if !streamed {
-		series.total.Add(1)
-	}
 }
 
 // seriesFor returns the series for a key, minting it when the cap permits. The
@@ -370,15 +363,6 @@ func (r *telemetryRecorder) renderSeries(
 	writeTelemetrySample(out, base+"_bucket", labels+`,le="+Inf"`, strconv.FormatInt(count, 10), timestampMillis)
 	writeTelemetrySample(out, base+"_sum", labels, formatTelemetrySeconds(series.sum.Load()), timestampMillis)
 	writeTelemetrySample(out, base+"_count", labels, strconv.FormatInt(count, 10), timestampMillis)
-	if !series.stream {
-		writeTelemetrySample(
-			out,
-			r.seriesName("specular_operation_total"),
-			labels,
-			strconv.FormatInt(series.total.Load(), 10),
-			timestampMillis,
-		)
-	}
 }
 
 // telemetryLabels is the whole label set. Only the operation and the status
@@ -447,10 +431,13 @@ func newStatusResponseWriter(w http.ResponseWriter) *statusResponseWriter {
 }
 
 func (w *statusResponseWriter) WriteHeader(status int) {
-	if !w.wrote {
-		w.status = status
-		w.wrote = true
+	if w.wrote {
+		// net/http answers a second call with a "superfluous WriteHeader"
+		// log line, so it never reaches the writer a second time.
+		return
 	}
+	w.status = status
+	w.wrote = true
 	w.ResponseWriter.WriteHeader(status)
 }
 

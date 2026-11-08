@@ -2,7 +2,13 @@ package server
 
 import (
 	"context"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -132,7 +138,130 @@ func TestAPartArrivesBeforeTheNextPartStarts(t *testing.T) {
 		require.NoError(t, ev.Err)
 		require.Equal(t, "a", ev.Output.(*BookCreateOutput).ID)
 		t.Logf("first part after %v", time.Since(start))
-	case <-time.After(200 * time.Millisecond):
-		t.Fatalf("first part not received within 200ms")
+	case <-time.After(time.Second):
+		// The handler holds this part for two seconds, so a part that waits
+		// for the next one can never arrive inside this bound.
+		t.Fatalf("first part not received within 1s")
 	}
+}
+
+// postStream sends what a client sends, without the client, so a test can read
+// the wire itself.
+func postStream(t *testing.T, ts *httptest.Server, op *client.Operation) *http.Response {
+	t.Helper()
+	input := &BookCreateInput{}
+	uri := ts.URL + "/" + op.Resource().PackageUniqueName() + "/" + op.Name()
+	req, err := http.NewRequest(http.MethodPost, uri, strings.NewReader("{}"))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", input.StructPath().MIMENameJSONHTTP())
+	res, err := ts.Client().Do(req)
+	require.NoError(t, err)
+	return res
+}
+
+// The delimiter that ends a part is written with the part, not when the next
+// part starts. A multipart reader can only finish a part once it sees that
+// delimiter, so a reader that finishes a part must not wait for the handler to
+// send the next one. This is the framing the client depends on: the delimiter
+// used to be written when the next part started, and every part then waited
+// for the next part or the five second heartbeat.
+func TestAStandardReaderEndsAPartBeforeTheNextOneStarts(t *testing.T) {
+	pk, op := streamTestPackage(t)
+	var once sync.Once
+	release := make(chan struct{})
+	released := func() { once.Do(func() { close(release) }) }
+	defer released()
+
+	svc := NewService(
+		WithServicePackage(pk),
+		WithStreamHandler(StreamHandlerFunc(func(ctx context.Context, opx *OperationExecution) (<-chan client.StreamEvent[client.Struct], error) {
+			out := make(chan client.StreamEvent[client.Struct])
+			go func() {
+				defer close(out)
+				select {
+				case out <- client.StreamEvent[client.Struct]{Output: &BookCreateOutput{ID: "a"}}:
+				case <-ctx.Done():
+					return
+				}
+				// Longer than the bound below, so a part whose delimiter waits
+				// for the next part cannot pass, and under the five second
+				// heartbeat, so a heartbeat cannot end the part either.
+				select {
+				case <-time.After(2 * time.Second):
+				case <-release:
+				case <-ctx.Done():
+					return
+				}
+				select {
+				case out <- client.StreamEvent[client.Struct]{Output: &BookCreateOutput{ID: "b"}}:
+				case <-ctx.Done():
+				}
+			}()
+			return out, nil
+		})),
+	)
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	res := postStream(t, ts, op)
+	defer res.Body.Close()
+
+	mediaType, params, err := mime.ParseMediaType(res.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/mixed", mediaType)
+
+	reader := multipart.NewReader(res.Body, params["boundary"])
+	started := time.Now()
+	part, err := reader.NextPart()
+	require.NoError(t, err)
+	require.Equal(t, (&BookCreateOutput{}).StructPath().MIMENameJSONHTTP(), part.Header.Get("Content-Type"))
+	content, err := io.ReadAll(part)
+	require.NoError(t, err)
+	took := time.Since(started)
+
+	require.Equal(t, `{"id":"a"}`, strings.TrimSpace(string(content)))
+	require.Less(t, took, 1500*time.Millisecond,
+		"the first part took %v, so its delimiter arrived with the next part", took)
+
+	released()
+	second, err := reader.NextPart()
+	require.NoError(t, err)
+	secondContent, err := io.ReadAll(second)
+	require.NoError(t, err)
+	require.Equal(t, `{"id":"b"}`, strings.TrimSpace(string(secondContent)))
+}
+
+// A stream that sends nothing still ends with the part that carries no
+// Content-Type, which is what the specification says ends a stream. The
+// closing delimiter alone would be a different wire.
+func TestAnEmptyStreamEndsWithThePartThatCarriesNoContentType(t *testing.T) {
+	pk, op := streamTestPackage(t)
+	svc := NewService(
+		WithServicePackage(pk),
+		WithStreamHandler(StreamHandlerFunc(func(ctx context.Context, opx *OperationExecution) (<-chan client.StreamEvent[client.Struct], error) {
+			out := make(chan client.StreamEvent[client.Struct])
+			close(out)
+			return out, nil
+		})),
+	)
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	res := postStream(t, ts, op)
+	defer res.Body.Close()
+
+	mediaType, params, err := mime.ParseMediaType(res.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/mixed", mediaType)
+
+	reader := multipart.NewReader(res.Body, params["boundary"])
+	marker, err := reader.NextPart()
+	require.NoError(t, err, "a stream ends with a part, not with the closing delimiter alone")
+	require.Empty(t, marker.Header.Get("Content-Type"))
+	content, err := io.ReadAll(marker)
+	require.NoError(t, err)
+	require.Empty(t, content)
+
+	_, err = reader.NextPart()
+	require.Equal(t, io.EOF, err)
 }

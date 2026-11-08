@@ -123,6 +123,28 @@ func (t *telemetryTransport) PushList() []telemetryPush {
 	return out
 }
 
+// Len is how many pushes were attempted, read without copying the bodies.
+func (t *telemetryTransport) Len() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return len(t.pushes)
+}
+
+// flushTelemetry flushes until the interval has carried `want` pushes.
+//
+// The observation is written after ServeHTTP returns, so a client can finish a
+// response before the server has recorded it. One flush can then carry nothing
+// while the request lands in the next interval, which is the designed cost of
+// swapping the store before the render rather than locking every request.
+func flushTelemetry(t *testing.T, svc *Service, transport *telemetryTransport, want int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		_ = svc.telemetry.flush()
+		return transport.Len() >= want
+	}, 2*time.Second, time.Millisecond,
+		"no interval carried the %d request(s) the test made", want)
+}
+
 // telemetryWarnLog records the messages a Warn produced.
 type telemetryWarnLog struct {
 	mu    sync.Mutex
@@ -254,12 +276,9 @@ func telemetryStreamBase() string {
 	return testTelemetryPrefix + "_specular_stream_open_seconds"
 }
 
-func telemetryTotalName() string {
-	return testTelemetryPrefix + "_specular_operation_total"
-}
-
 // One 2xx request that took 300ms: one observation, in the 0.5 bucket, sum 0.3,
-// count 1, beside its total.
+// count 1. The histogram count is the request count, and there is no second
+// counter to disagree with it.
 func TestAnEndpointRecordsItsDuration(t *testing.T) {
 	pk, err := testPackage()
 	require.NoError(t, err)
@@ -268,7 +287,7 @@ func TestAnEndpointRecordsItsDuration(t *testing.T) {
 	svc, server := newMeasuredService(t, pk, clock, transport, bookCreateTaking(clock, 300*time.Millisecond))
 
 	require.Equal(t, http.StatusOK, postBookCreate(t, server))
-	require.NoError(t, svc.telemetry.flush())
+	flushTelemetry(t, svc, transport, 1)
 
 	pushes := transport.PushList()
 	require.Len(t, pushes, 1)
@@ -286,7 +305,8 @@ func TestAnEndpointRecordsItsDuration(t *testing.T) {
 	require.Equal(t, 1.0, samples[telemetryKey(base+"_bucket", "Book.Create", "2xx", "0.5")])
 	require.Equal(t, 1.0, samples[telemetryKey(base+"_count", "Book.Create", "2xx", "")])
 	require.InDelta(t, 0.3, samples[telemetryKey(base+"_sum", "Book.Create", "2xx", "")], 1e-9)
-	require.Equal(t, 1.0, samples[telemetryKey(telemetryTotalName(), "Book.Create", "2xx", "")])
+	require.NotContains(t, push.Body, "specular_operation_total",
+		"the count already is the request count, so a second counter would repeat it")
 }
 
 // A duration exactly on a bound belongs to that bound, which is what le means.
@@ -313,7 +333,7 @@ func TestABucketBoundaryMatchesPrometheus(t *testing.T) {
 			svc, server := newMeasuredService(t, pk, clock, transport, bookCreateTaking(clock, c.took))
 
 			postBookCreate(t, server)
-			require.NoError(t, svc.telemetry.flush())
+			flushTelemetry(t, svc, transport, 1)
 			pushes := transport.PushList()
 			require.Len(t, pushes, 1)
 
@@ -347,7 +367,7 @@ func TestAStreamedOperationIsNotARequest(t *testing.T) {
 	)
 
 	require.Equal(t, []string{"a"}, drain(t, server, op))
-	require.NoError(t, svc.telemetry.flush())
+	flushTelemetry(t, svc, transport, 1)
 
 	pushes := transport.PushList()
 	require.Len(t, pushes, 1)
@@ -379,14 +399,13 @@ func TestAnAuthenticationFailureIsRecordedAgainstTheOperation(t *testing.T) {
 	)
 
 	require.Equal(t, http.StatusForbidden, postBookCreate(t, server))
-	require.NoError(t, svc.telemetry.flush())
+	flushTelemetry(t, svc, transport, 1)
 
 	pushes := transport.PushList()
 	require.Len(t, pushes, 1)
 	base := telemetryRequestBase()
 	samples := telemetrySamples(t, pushes[0].Body)
 	require.Equal(t, 1.0, samples[telemetryKey(base+"_count", "Book.Create", "4xx", "")])
-	require.Equal(t, 1.0, samples[telemetryKey(telemetryTotalName(), "Book.Create", "4xx", "")])
 	require.NotContains(t, samples, telemetryKey(base+"_count", "Book.Create", "2xx", ""))
 }
 
@@ -455,7 +474,7 @@ func TestAFlushRendersCumulativeBuckets(t *testing.T) {
 		took.Store(int64(d))
 		postBookCreate(t, server)
 	}
-	require.NoError(t, svc.telemetry.flush())
+	flushTelemetry(t, svc, transport, 1)
 
 	pushes := transport.PushList()
 	require.Len(t, pushes, 1)
@@ -494,7 +513,7 @@ func TestAFlushCarriesOnlyTheNewObservations(t *testing.T) {
 	base := telemetryRequestBase()
 
 	postBookCreate(t, server)
-	require.NoError(t, svc.telemetry.flush())
+	flushTelemetry(t, svc, transport, 1)
 	pushes := transport.PushList()
 	require.Len(t, pushes, 1)
 	first := telemetrySamples(t, pushes[0].Body)
@@ -508,14 +527,12 @@ func TestAFlushCarriesOnlyTheNewObservations(t *testing.T) {
 
 	took.Store(int64(250 * time.Millisecond))
 	postBookCreate(t, server)
-	require.NoError(t, svc.telemetry.flush())
+	flushTelemetry(t, svc, transport, 2)
 	pushes = transport.PushList()
 	require.Len(t, pushes, 2)
 	second := telemetrySamples(t, pushes[1].Body)
 	require.Equal(t, 1.0, second[telemetryKey(base+"_count", "Book.Create", "2xx", "")],
 		"the second interval counts only its own request")
-	require.Equal(t, 1.0, second[telemetryKey(telemetryTotalName(), "Book.Create", "2xx", "")],
-		"the total carries only its own request too")
 	require.InDelta(t, 0.25, second[telemetryKey(base+"_sum", "Book.Create", "2xx", "")], 1e-9)
 	require.Equal(t, 0.0, second[telemetryKey(base+"_bucket", "Book.Create", "2xx", "0.1")],
 		"the first interval must not travel twice")
@@ -527,9 +544,9 @@ func TestAFlushCarriesOnlyTheNewObservations(t *testing.T) {
 // hides http.Flusher turns every stream into one buffer that arrives at the
 // end, with no error anywhere and nothing to show it.
 //
-// Two parts are sent before the handler waits, because a multipart part only
-// completes when the next boundary is written. The wait is two seconds, well
-// under the five second heartbeat, so a heartbeat cannot do the flush for us.
+// The parts are sent before the handler waits, and the wait is two seconds,
+// well under the five second heartbeat, so a heartbeat cannot do the flush for
+// us.
 func TestAStreamPartReachesTheClientBeforeTheHandlerEnds(t *testing.T) {
 	pk, op := streamTestPackage(t)
 	acknowledged := make(chan struct{})
@@ -600,14 +617,20 @@ func TestAPushFailureDoesNotStopTheNextFlush(t *testing.T) {
 
 	transport.failNext(1)
 	postBookCreate(t, server)
-	svc.telemetry.flushAndLog()
+	require.Eventually(t, func() bool {
+		svc.telemetry.flushAndLog()
+		return transport.Len() >= 1
+	}, 2*time.Second, time.Millisecond, "the push was never attempted")
 	require.Len(t, transport.PushList(), 1, "the push was attempted")
 	require.Len(t, warns.warnings(), 1)
 	require.Contains(t, warns.warnings()[0], "metrics push failed")
 
 	took.Store(int64(250 * time.Millisecond))
 	postBookCreate(t, server)
-	svc.telemetry.flushAndLog()
+	require.Eventually(t, func() bool {
+		svc.telemetry.flushAndLog()
+		return transport.Len() >= 2
+	}, 2*time.Second, time.Millisecond, "the next interval never fired")
 	pushes := transport.PushList()
 	require.Len(t, pushes, 2, "the next interval still fires")
 	require.Len(t, warns.warnings(), 1, "a healthy push says nothing")
@@ -669,7 +692,7 @@ func TestALabelNeverCarriesACustomerIdentifier(t *testing.T) {
 	)
 
 	postBookCreate(t, server)
-	require.NoError(t, svc.telemetry.flush())
+	flushTelemetry(t, svc, transport, 1)
 	pushes := transport.PushList()
 	require.Len(t, pushes, 1)
 	body := pushes[0].Body
