@@ -27,6 +27,8 @@ type Service struct {
 	logging
 	unhandledErrorHandling
 	authentication
+	// telemetry is nil unless WithTelemetry configured a write URL.
+	telemetry *telemetryRecorder
 }
 
 // NewService creates a new Service
@@ -36,30 +38,66 @@ func NewService(opts ...ServiceOptionFunc) *Service {
 		opt(s)
 	}
 	s.initLogging()
+	s.initTelemetry()
 	return s
 }
 
-// ServeHTTP implements http.Handler for servicing a package
+// initTelemetry gives the recorder the service logger and starts its interval
+// loop. A recorder with no write URL is nil, so nothing is started and nothing
+// is pushed.
+func (s *Service) initTelemetry() {
+	recorder := s.telemetry
+	if recorder == nil {
+		return
+	}
+	recorder.logger = s.logger
+	go recorder.run()
+}
+
+// ServeHTTP implements http.Handler for servicing a package. Every operation of
+// every service passes through here, which is why one measurement here covers
+// every endpoint.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := s.logger
+	recorder := s.telemetry
+	var started time.Time
+	if recorder != nil {
+		started = recorder.now()
+	}
 
-	popx, preResult := s.buildHTTPOperationExecution(logger, r)
+	writer := newStatusResponseWriter(w)
+	popx, pre, preResult := s.buildHTTPOperationExecution(logger, r)
 	if preResult != nil {
-		_ = preResult.WriteResponse(w)
+		_ = preResult.WriteResponse(writer)
+		// pre is set as soon as the operation is known, so a request refused by
+		// authentication is still measured against its operation. A path that
+		// names no operation leaves pre nil and creates no series.
+		if recorder != nil && pre != nil {
+			recorder.observe(pre.Operation, writer.status, recorder.now().Sub(started))
+		}
 		return
 	}
 	octx := newServiceOperationContext(logger, popx, &s.opsHandlers)
-	octx.serve(w)
+	octx.serve(writer)
+	if recorder != nil {
+		// A handler that panics unwinds past this line and is not recorded.
+		// Guessing a class for it would report whatever the writer saw before
+		// the panic, and a partial write is not a status class.
+		recorder.observe(popx.Operation, writer.status, recorder.now().Sub(started))
+	}
 }
 
+// buildHTTPOperationExecution resolves the request to an operation. It returns
+// the pre execution as soon as the operation is known, even when the request is
+// then refused or its body is rejected, so the caller can measure it.
 func (s *Service) buildHTTPOperationExecution(
 	logger *slog.Logger,
 	r *http.Request,
-) (*OperationExecution, *client.HTTPResult) {
+) (*OperationExecution, *PreOperationExecution, *client.HTTPResult) {
 	pk := s.pk
 	path, herr := parseOperationExecutionPathFromURIPath(r.URL.Path)
 	if herr != nil {
-		return nil, client.HTTPResultForError(herr)
+		return nil, nil, client.HTTPResultForError(herr)
 	}
 	ctx := r.Context()
 	pre, herr := buildPreOperationExecution(
@@ -70,7 +108,7 @@ func (s *Service) buildHTTPOperationExecution(
 		path,
 	)
 	if herr != nil {
-		return nil, client.HTTPResultForError(herr)
+		return nil, nil, client.HTTPResultForError(herr)
 	}
 	r = r.WithContext(pre.Ctx)
 	//  authenticate
@@ -81,7 +119,7 @@ func (s *Service) buildHTTPOperationExecution(
 			Logger:             logger,
 		}
 		if err := handler(params); err != nil {
-			return nil, pre.BuildFinalResult(nil, err)
+			return nil, pre, pre.BuildFinalResult(nil, err)
 		}
 		// context possible replaced as part of authentication, we must re-adopt
 		pre.Ctx = params.Request.Context()
@@ -89,7 +127,7 @@ func (s *Service) buildHTTPOperationExecution(
 
 	opx, herr := buildOperationExecution(logger, pk, pre, r.Body)
 	if herr != nil {
-		return nil, client.HTTPResultForError(herr)
+		return nil, pre, client.HTTPResultForError(herr)
 	}
-	return opx, nil
+	return opx, pre, nil
 }
