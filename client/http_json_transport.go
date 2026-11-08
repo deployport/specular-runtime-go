@@ -301,8 +301,10 @@ func (cs *clientStream) fetchNextPart() (Struct, error) {
 	if err != nil {
 		return nil, err
 	}
-	// log.Printf("next part has been fetched")
-	defer part.Close()
+	// The part is not closed here. Closing reads to the delimiter that ends
+	// it, and an older server writes that delimiter only when its next part
+	// starts, so closing first would hold this part back until then.
+	// NextPart closes it before reading the next one.
 	result, err := ParseHTTPClientResult(cs.structFinder, http.Header(part.Header), part)
 	if err != nil {
 		// includes io.EOF when necessary

@@ -87,3 +87,52 @@ func TestAStreamOutlivesTheServerWriteTimeout(t *testing.T) {
 
 	require.Equal(t, []string{"a", "b", "c"}, drain(t, ts, op))
 }
+
+// A part reaches the caller when it is sent, not when the next part starts
+func TestAPartArrivesBeforeTheNextPartStarts(t *testing.T) {
+	pk, op := streamTestPackage(t)
+	release := make(chan struct{})
+	defer close(release)
+	svc := NewService(
+		WithServicePackage(pk),
+		WithStreamHandler(StreamHandlerFunc(func(ctx context.Context, opx *OperationExecution) (<-chan client.StreamEvent[client.Struct], error) {
+			out := make(chan client.StreamEvent[client.Struct])
+			go func() {
+				defer close(out)
+				select {
+				case out <- client.StreamEvent[client.Struct]{Output: &BookCreateOutput{ID: "a"}}:
+				case <-ctx.Done():
+					return
+				}
+				// Nothing else for longer than the bound below
+				select {
+				case <-time.After(2 * time.Second):
+				case <-release:
+				case <-ctx.Done():
+				}
+			}()
+			return out, nil
+		})),
+	)
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	transport, err := client.NewHTTPJSONTransport(ts.URL, client.WithHTTPJSONTransportClient(ts.Client()))
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	events, err := transport.Stream(ctx, &client.Request{Operation: op, Input: &BookCreateInput{}})
+	require.NoError(t, err)
+
+	select {
+	case ev, ok := <-events:
+		require.True(t, ok, "stream closed before the first part")
+		require.NoError(t, ev.Err)
+		require.Equal(t, "a", ev.Output.(*BookCreateOutput).ID)
+		t.Logf("first part after %v", time.Since(start))
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("first part not received within 200ms")
+	}
+}

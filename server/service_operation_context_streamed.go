@@ -2,10 +2,9 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
-	"net/textproto"
-	"strings"
 	"time"
 
 	"go.deployport.com/specular-runtime/client"
@@ -14,8 +13,59 @@ import (
 type serviceOperationStreamServeContext struct {
 	*serviceOperationContext
 	flusher http.Flusher
-	writer  *multipart.Writer
+	writer  *streamPartWriter
 	tpChan  <-chan client.StreamEvent[client.Struct]
+}
+
+// streamPartWriter writes multipart/mixed with the same bytes as
+// multipart.Writer, but it writes the delimiter that ends a part
+// right after the part's content instead of when the next part starts.
+// A reader can only finish a part once it sees that delimiter, so
+// writing it late held every part back until the next one began.
+type streamPartWriter struct {
+	w        io.Writer
+	boundary string
+	// ended is true once the close delimiter is written
+	ended bool
+}
+
+func newStreamPartWriter(w io.Writer) *streamPartWriter {
+	return &streamPartWriter{
+		w:        w,
+		boundary: multipart.NewWriter(io.Discard).Boundary(),
+	}
+}
+
+// open writes the first delimiter, after which the next part's headers follow
+func (sw *streamPartWriter) open() error {
+	_, err := fmt.Fprintf(sw.w, "--%s\r\n", sw.boundary)
+	return err
+}
+
+// writePart writes one part and the delimiter that ends it
+func (sw *streamPartWriter) writePart(contentType string, content func(io.Writer) error) error {
+	if _, err := fmt.Fprintf(sw.w, "Content-Type: %s\r\n\r\n", contentType); err != nil {
+		return err
+	}
+	if content != nil {
+		if err := content(sw.w); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintf(sw.w, "\r\n--%s\r\n", sw.boundary)
+	return err
+}
+
+// close ends the body. The writer always sits where a part's headers
+// begin, so it writes the end marker (a part with an empty Content-Type,
+// which clients read as the end of the stream) and the close delimiter.
+func (sw *streamPartWriter) close() error {
+	if sw.ended {
+		return nil
+	}
+	sw.ended = true
+	_, err := fmt.Fprintf(sw.w, "Content-Type: \r\n\r\n\r\n--%s--\r\n", sw.boundary)
+	return err
 }
 
 func serveServiceOperationStream(
@@ -47,13 +97,12 @@ func (octx *serviceOperationStreamServeContext) prepareMultipart(w http.Response
 	// Server.WriteTimeout is set once when the headers are read and never extended
 	// Clearing it is best effort and a wrapped ResponseWriter may not support it
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
-	octx.writer = multipart.NewWriter(w)
+	octx.writer = newStreamPartWriter(w)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Connection", "Keep-Alive")
-	contentType := octx.writer.FormDataContentType()
-	contentType = strings.Replace(contentType, "multipart/form-data", "multipart/mixed", 1)
-	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Type", "multipart/mixed; boundary="+octx.writer.boundary)
 	w.WriteHeader(http.StatusOK)
+	_ = octx.writer.open()
 }
 
 func (octx *serviceOperationStreamServeContext) flush() {
@@ -65,20 +114,17 @@ func (octx *serviceOperationStreamServeContext) flush() {
 // streamResult receives a HTTPResult and streams it to the client using a HTTP multipart response
 // result could be nil to indicate the end of the stream
 func (octx *serviceOperationStreamServeContext) streamResult(result *client.HTTPResult) error {
-	mime := ""
-	if result != nil {
-		mime = result.MimeType()
-	}
-	part, err := octx.writer.CreatePart(textproto.MIMEHeader{
-		"Content-Type": {mime},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create part, %w", err)
-	}
-	if result != nil {
-		if err := result.WriteContent(part); err != nil {
-			return fmt.Errorf("failed to write part: %w", err)
+	if result == nil {
+		// The end marker: an empty Content-Type, then the close delimiter
+		err := octx.writer.close()
+		octx.flush()
+		if err != nil {
+			return fmt.Errorf("failed to end stream: %w", err)
 		}
+		return nil
+	}
+	if err := octx.writer.writePart(result.MimeType(), result.WriteContent); err != nil {
+		return fmt.Errorf("failed to write part: %w", err)
 	}
 	octx.flush()
 	return nil
@@ -90,7 +136,7 @@ func (octx *serviceOperationStreamServeContext) sendHeartbeatAndFlush() error {
 
 // serveStream serves an streamed operation
 func (octx *serviceOperationStreamServeContext) serveStream() {
-	defer octx.writer.Close()
+	defer octx.writer.close()
 
 	// sendStreamedType := func(output Struct) error {
 	// 	part, err := writer.CreatePart(textproto.MIMEHeader{
